@@ -1,0 +1,25 @@
+# Variables de entorno y secretos (Twelve-Factor App / Shift-Left Security)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Dependencias Node.js
+node_modules/
+**/node_modules/
+
+# Compilaciones y cachés
+dist/
+build/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Logs y temporales
+logs/
+*.log
+npm-debug.log*
+.playwright-mcp/
+.DS_Store
+Thumbs.db

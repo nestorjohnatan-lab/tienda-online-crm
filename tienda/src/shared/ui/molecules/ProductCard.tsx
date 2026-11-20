@@ -1,5 +1,6 @@
-import { ShoppingCart, Snowflake, Sparkles, Star } from 'lucide-react';
-import { useStoreSettings } from '../../api/client';
+import { Flame, ShoppingCart, Snowflake, Sparkles, Star, Store, TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { resolveMediaUrl, useStoreSettings } from '../../api/client';
 import type { StoreProductSummary } from '../../api/contracts';
 import { useCart } from '../../cart/CartContext';
 
@@ -17,8 +18,10 @@ const PRODUCT_FALLBACK_IMG: Record<string, string> = {
   'VH-CAR-009': '/media/products/kit-cuidado.jpg',
 };
 
-export const getProductImage = (product: StoreProductSummary): string =>
-  PRODUCT_FALLBACK_IMG[product.sku] ?? product.thumbnail_url ?? '/media/products/compresor-ac.jpg';
+export const getProductImage = (product: StoreProductSummary): string => {
+  if (product.thumbnail_url) return resolveMediaUrl(product.thumbnail_url);
+  return PRODUCT_FALLBACK_IMG[product.sku] ?? '/media/products/compresor-ac.jpg';
+};
 
 function Stars({ value }: { value: number }) {
   const full = Math.round(value);
@@ -42,11 +45,13 @@ export function ProductCard({ product }: { product: StoreProductSummary }) {
   const { data: settings } = useStoreSettings();
   const cool = product.product_line === 'refrigeracion_vehicular';
   const low = product.in_stock && product.stock_quantity <= 5;
-  const imgSrc = PRODUCT_FALLBACK_IMG[product.sku] ?? product.thumbnail_url ?? '/media/products/compresor-ac.jpg';
+  const isTopSeller = (product.sold_count ?? 0) >= 5;
+  const isTrendingSearch = !isTopSeller && (product.search_count ?? 0) >= 5;
+  const imgSrc = getProductImage(product);
 
   return (
     <article className="prod-card">
-      <div className={`prod-card__media ${cool ? 'is-cool' : 'is-warm'}`}>
+      <Link to={`/producto/${product.slug}`} className={`prod-card__media ${cool ? 'is-cool' : 'is-warm'}`}>
         <img
           src={imgSrc}
           alt={product.name}
@@ -60,20 +65,38 @@ export function ProductCard({ product }: { product: StoreProductSummary }) {
         <span className={`stock ${!product.in_stock ? 'stock--out' : low ? 'stock--low' : ''}`}>
           {product.in_stock ? `Stock ${product.stock_quantity}` : 'Agotado'}
         </span>
-      </div>
+      </Link>
 
       <div className="prod-card__info">
         <p className="prod-card__sku">
           {product.sku}
           {product.oem_code ? ` · OEM ${product.oem_code}` : ''}
         </p>
-        <h3>{product.name}</h3>
+        <h3>
+          <Link to={`/producto/${product.slug}`}>{product.name}</Link>
+        </h3>
+        {product.store_name && (
+          <p className="prod-card__store">
+            <Store size={11} />{' '}
+            <Link to={`/tienda/${product.store_slug ?? 'nexora-oficial'}`}>{product.store_name}</Link>
+          </p>
+        )}
         {product.vehicle_compatibility && (
           <p className="prod-card__compat">{product.vehicle_compatibility}</p>
         )}
         <p className="prod-card__rating">
           <Stars value={product.rating_average} />
           <small>({product.rating_count})</small>
+          {isTopSeller && (
+            <span className="prod-card__signal prod-card__signal--hot">
+              <Flame size={11} /> Más vendido
+            </span>
+          )}
+          {isTrendingSearch && (
+            <span className="prod-card__signal prod-card__signal--trend">
+              <TrendingUp size={11} /> Más buscado
+            </span>
+          )}
         </p>
       </div>
 

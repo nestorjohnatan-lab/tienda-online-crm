@@ -3,6 +3,7 @@ import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import type { UserRole } from '../shared/api/contracts';
 import { AuthProvider, useAuth } from '../features/auth/AuthContext';
 import { LoginPage } from '../features/auth/LoginPage';
+import { NexoraLogo } from '../shared/ui/atoms/NexoraLogo';
 
 // Code splitting por módulo
 const DashboardPage = lazy(() => import('../features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })));
@@ -11,16 +12,20 @@ const InventoryPage = lazy(() => import('../features/inventory/InventoryPage').t
 const SalesPage = lazy(() => import('../features/sales/SalesPage').then((m) => ({ default: m.SalesPage })));
 const CustomersPage = lazy(() => import('../features/customers/CustomersPage').then((m) => ({ default: m.CustomersPage })));
 const StoreSettingsPage = lazy(() => import('../features/settings/StoreSettingsPage').then((m) => ({ default: m.StoreSettingsPage })));
+const MessagesPage = lazy(() => import('../features/messages/MessagesPage').then((m) => ({ default: m.MessagesPage })));
+const MyStorePage = lazy(() => import('../features/stores/MyStorePage').then((m) => ({ default: m.MyStorePage })));
 
 interface Module { path: string; label: string; roles: readonly UserRole[]; element: ReactElement }
 
 // Deny by default: cada módulo declara explícitamente los roles permitidos
 const MODULES: readonly Module[] = [
   { path: '/', label: 'Dashboard', roles: ['admin', 'vendedor', 'almacen'], element: <DashboardPage /> },
-  { path: '/banners', label: 'Carrusel de banners', roles: ['admin', 'vendedor'], element: <BannersPage /> },
+  { path: '/mi-tienda', label: 'Mi tienda', roles: ['admin', 'vendedor'], element: <MyStorePage /> },
   { path: '/inventario', label: 'Inventario', roles: ['admin', 'almacen'], element: <InventoryPage /> },
   { path: '/ventas', label: 'Ventas y pedidos', roles: ['admin', 'vendedor', 'almacen'], element: <SalesPage /> },
+  { path: '/mensajes', label: 'Preguntas y reseñas', roles: ['admin', 'vendedor'], element: <MessagesPage /> },
   { path: '/clientes', label: 'Clientes', roles: ['admin', 'vendedor'], element: <CustomersPage /> },
+  { path: '/banners', label: 'Carrusel de banners', roles: ['admin', 'vendedor'], element: <BannersPage /> },
   { path: '/configuracion', label: 'Configuración tienda', roles: ['admin'], element: <StoreSettingsPage /> },
 ];
 
@@ -32,7 +37,9 @@ function Shell() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="sidebar__brand">Auto<b>Frío</b> <small>CRM</small></div>
+        <div className="sidebar__brand">
+          <NexoraLogo subtitle="CRM" size="sm" tone="dark" />
+        </div>
         <nav aria-label="Módulos">
           {allowed.map((m) => (
             <NavLink key={m.path} to={m.path} end={m.path === '/'}>{m.label}</NavLink>

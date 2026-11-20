@@ -1,21 +1,35 @@
+import { TrendingUp } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { useCategories, useProducts } from '../../shared/api/client';
+import { useCategories, useProducts, useTrendingSearches } from '../../shared/api/client';
 import { ProductCard, ProductSkeleton } from '../../shared/ui/molecules/ProductCard';
+
+const SORT_OPTIONS = [
+  { value: 'popular', label: 'Ordenar: Relevancia y popularidad' },
+  { value: 'bestsellers', label: 'Más vendidos' },
+  { value: 'most_searched', label: 'Más buscados' },
+  { value: 'rating_desc', label: 'Mejor valorados' },
+  { value: 'price_asc', label: 'Menor precio' },
+  { value: 'price_desc', label: 'Mayor precio' },
+  { value: 'newest', label: 'Más recientes' },
+] as const;
 
 export function CatalogPage() {
   const [params, setParams] = useSearchParams();
   const linea = params.get('linea') ?? '';
   const categoria = params.get('categoria') ?? '';
   const q = params.get('q') ?? '';
+  const sort = params.get('sort') ?? 'popular';
 
   const qs = new URLSearchParams();
   if (linea) qs.set('product_line', linea);
   if (categoria) qs.set('category_slug', categoria);
   if (q) qs.set('q', q);
+  qs.set('sort', sort);
   qs.set('page_size', '24');
 
   const categories = useCategories();
   const products = useProducts(`?${qs.toString()}`);
+  const trending = useTrendingSearches(6);
 
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -25,26 +39,35 @@ export function CatalogPage() {
     setParams(next, { replace: true });
   };
 
-  // Respaldo mock: el filtrado se aplica en el cliente solo si la API no respondió
+  // Respaldo mock: filtrado y ordenamiento en el cliente solo si la API no respondió
   const items = products.isFallback
-    ? products.data.filter(
+    ? products.data
+      .filter(
         (p) =>
           (!linea || p.product_line === linea) &&
           (!categoria || categories.data.find((c) => c.slug === categoria)?.category_id === p.category_id) &&
-          (!q || `${p.name} ${p.sku}`.toLowerCase().includes(q.toLowerCase())),
+          (!q || `${p.name} ${p.sku} ${p.vehicle_compatibility ?? ''}`.toLowerCase().includes(q.toLowerCase())),
       )
+      .sort((a, b) => {
+        if (sort === 'bestsellers') return (b.sold_count ?? 0) - (a.sold_count ?? 0);
+        if (sort === 'most_searched') return (b.search_count ?? 0) - (a.search_count ?? 0);
+        if (sort === 'price_asc') return a.price - b.price;
+        if (sort === 'price_desc') return b.price - a.price;
+        if (sort === 'rating_desc') return b.rating_average - a.rating_average;
+        return (b.popularity_score ?? 0) - (a.popularity_score ?? 0);
+      })
     : products.data;
 
   return (
     <section className="section section--dark section--page">
       <div className="container">
-        <p className="eyebrow">Catálogo</p>
-        <h1 className="page-title">Refrigeración vehicular y variados</h1>
+        <p className="eyebrow">Marketplace</p>
+        <h1 className="page-title">Explora el catálogo NEXORA</h1>
 
         <form className="filters" role="search" onSubmit={(e) => e.preventDefault()}>
           <input
             type="search"
-            placeholder="Buscar compresor, R134a, LED…"
+            placeholder="Buscar productos, marcas, SKU…"
             value={q}
             onChange={(e) => update('q', e.target.value)}
             aria-label="Buscar productos"
@@ -67,15 +90,40 @@ export function CatalogPage() {
               </button>
             ))}
           </div>
-          <select value={categoria} onChange={(e) => update('categoria', e.target.value)} aria-label="Categoría">
-            <option value="">Todas las categorías</option>
-            {categories.data
-              .filter((c) => !linea || c.product_line === linea)
-              .map((c) => (
-                <option key={c.category_id} value={c.slug}>{c.name}</option>
+          <div className="filters__selects">
+            <select value={categoria} onChange={(e) => update('categoria', e.target.value)} aria-label="Categoría">
+              <option value="">Todas las categorías</option>
+              {categories.data
+                .filter((c) => !linea || c.product_line === linea)
+                .map((c) => (
+                  <option key={c.category_id} value={c.slug}>{c.name}</option>
+                ))}
+            </select>
+            <select value={sort} onChange={(e) => update('sort', e.target.value)} aria-label="Ordenar catálogo">
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
-          </select>
+            </select>
+          </div>
         </form>
+
+        {trending.data.length > 0 && (
+          <div className="trending-bar" aria-label="Búsquedas populares">
+            <span className="trending-bar__label">
+              <TrendingUp size={13} /> Más buscados:
+            </span>
+            {trending.data.map((t) => (
+              <button
+                key={t.term}
+                type="button"
+                className={`trending-chip ${q.toLowerCase() === t.term.toLowerCase() ? 'is-active' : ''}`}
+                onClick={() => update('q', q.toLowerCase() === t.term.toLowerCase() ? '' : t.term)}
+              >
+                {t.term}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid--prods">
           {products.loading

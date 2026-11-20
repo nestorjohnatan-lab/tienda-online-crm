@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { api } from '../../shared/api/http';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { api, resolveMediaUrl, uploadImageDataUrl } from '../../shared/api/http';
 import { money, useQuery } from '../../shared/api/useQuery';
 import { PricingModal, type PricingValues } from './PricingModal';
 
@@ -27,6 +27,8 @@ export interface CrmProduct {
   min_stock_threshold: number;
   is_low_stock: boolean;
   is_active: boolean;
+  gallery_urls?: string[];
+  thumbnail_url?: string | null;
 }
 
 interface ProductModalProps {
@@ -70,8 +72,50 @@ export function ProductModal({ product, onSaved, onClose }: ProductModalProps) {
   });
 
   const [showPricing, setShowPricing] = useState(false);
+  const [galleryUrls, setGalleryUrls] = useState<string[]>(
+    product?.gallery_urls && product.gallery_urls.length > 0
+      ? product.gallery_urls
+      : product?.thumbnail_url
+        ? [product.thumbnail_url]
+        : [],
+  );
+  const [urlInput, setUrlInput] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const uploaded: string[] = [];
+      for (const file of files.slice(0, 6)) {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error('Error leyendo imagen'));
+          reader.readAsDataURL(file);
+        });
+        const res = await uploadImageDataUrl(dataUrl);
+        uploaded.push(res.url);
+      }
+      setGalleryUrls((prev) => [...prev, ...uploaded].slice(0, 8));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error subiendo fotos');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const addExternalUrl = () => {
+    const clean = urlInput.trim();
+    if (!clean) return;
+    setGalleryUrls((prev) => [...prev, clean].slice(0, 8));
+    setUrlInput('');
+  };
 
   const categories = cats.data?.items ?? [];
   const selectedCategoryId = Number(categoryId) || categories[0]?.category_id || 1;
@@ -99,6 +143,8 @@ export function ProductModal({ product, onSaved, onClose }: ProductModalProps) {
       sale_price: pricing.sale_price,
       currency: 'USD',
       min_stock_threshold: Math.max(0, Number(minStock) || 0),
+      thumbnail_url: galleryUrls[0] ?? null,
+      gallery_urls: galleryUrls,
       is_active: product?.is_active ?? true,
     };
 
@@ -223,6 +269,42 @@ export function ProductModal({ product, onSaved, onClose }: ProductModalProps) {
                 onChange={(e) => setMinStock(e.target.value)}
               />
             </label>
+          </div>
+
+          {/* Galería multi-foto del producto */}
+          <div className="form" style={{ gap: '0.45rem' }}>
+            <label>
+              Fotos del producto (máx. 8 · la primera será la portada)
+              <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={handleFileUpload} disabled={uploading} />
+            </label>
+            <div className="row">
+              <input
+                type="url"
+                placeholder="O pega URL externa de imagen..."
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button type="button" className="btn btn--sm" onClick={addExternalUrl}>Agregar URL</button>
+            </div>
+            {uploading && <small className="muted">Subiendo imágenes…</small>}
+            {galleryUrls.length > 0 && (
+              <div className="row" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+                {galleryUrls.map((u, idx) => (
+                  <div key={`${u}-${idx}`} style={{ position: 'relative', width: 64, height: 52, border: '1px solid #e3e6ec', borderRadius: 6, overflow: 'hidden' }}>
+                    <img src={resolveMediaUrl(u)} alt={`Foto ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button
+                      type="button"
+                      aria-label="Quitar foto"
+                      onClick={() => setGalleryUrls((prev) => prev.filter((_, i) => i !== idx))}
+                      style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(20,23,28,0.8)', color: '#fff', border: 0, borderRadius: 4, fontSize: 10, padding: '1px 4px' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Botón que abre la Modal de Precios y Costos */}

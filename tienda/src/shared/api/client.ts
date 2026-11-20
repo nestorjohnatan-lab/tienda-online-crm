@@ -3,16 +3,28 @@ import type {
   ApiResponse,
   CreateStoreOrderRequest,
   CreateStoreOrderResponse,
+  MarketplaceStore,
+  OrderMessage,
+  ProductDetail,
+  ProductQuestion,
+  ProductReview,
   RegisterCustomerRequest,
   StoreBanner,
   StoreCategory,
   StoreProductSummary,
   StoreSettings,
   StoreUser,
+  TrendingSearchTerm,
 } from './contracts';
-import { mockBanners, mockCategories, mockProducts } from './mock-data';
+import { mockBanners, mockCategories, mockProducts, mockTrendingSearches } from './mock-data';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3100/api/v1';
+export const API_ORIGIN = BASE_URL.replace(/\/api\/v1\/?$/, '');
+export const resolveMediaUrl = (url: string | null | undefined): string => {
+  if (!url) return '/media/products/compresor-ac.jpg';
+  if (url.startsWith('/media/uploads/')) return `${API_ORIGIN}${url}`;
+  return url;
+};
 const TIMEOUT_MS = 4000;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -65,11 +77,87 @@ export const storeApi = {
   banners: () => request<Paginated<StoreBanner>>('/store/banners'),
   categories: () => request<Paginated<StoreCategory>>('/store/categories'),
   products: (qs: string) => request<Paginated<StoreProductSummary>>(`/store/products${qs}`),
+  trendingSearches: (limit = 6) =>
+    request<{ items: readonly TrendingSearchTerm[] }>(`/store/trending-searches?limit=${limit}`),
   settings: () => request<StoreSettings>('/store/settings'),
   createOrder: (payload: CreateStoreOrderRequest, idempotencyKey: string) =>
     request<CreateStoreOrderResponse>('/store/orders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(payload),
+    }),
+  productBySlug: (slug: string) => request<ProductDetail>(`/store/products/${encodeURIComponent(slug)}`),
+  stores: () => request<readonly MarketplaceStore[]>('/store/stores'),
+  storeBySlug: (slug: string) => request<MarketplaceStore>(`/store/stores/${encodeURIComponent(slug)}`),
+  registerStore: (payload: {
+    owner_name: string;
+    owner_email: string;
+    password: string;
+    store_name: string;
+    city: string;
+    phone: string;
+    description?: string;
+  }) =>
+    request<{ store: MarketplaceStore; user: StoreUser; access_token: string }>('/store/stores/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  productQuestions: (productId: number) =>
+    request<readonly ProductQuestion[]>(`/store/products/${productId}/questions`),
+  askQuestion: (productId: number, questionText: string, accessToken: string) =>
+    request<ProductQuestion>(`/store/products/${productId}/questions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ question_text: questionText }),
+    }),
+  productReviews: (productId: number) =>
+    request<readonly ProductReview[]>(`/store/products/${productId}/reviews`),
+  createReview: (
+    productId: number,
+    payload: {
+      order_number: string;
+      product_rating: number;
+      seller_rating: number;
+      title?: string;
+      comment: string;
+    },
+    accessToken: string,
+  ) =>
+    request<ProductReview>(`/store/products/${productId}/reviews`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    }),
+  myOrders: (accessToken: string) =>
+    request<
+      readonly {
+        order_id: number;
+        order_number: string;
+        order_status: string;
+        total_amount: number;
+        currency: string;
+        store_name: string;
+        created_at: string;
+        items: readonly { product_id: number; product_name: string; quantity: number }[];
+      }[]
+    >('/store/my/orders', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+  orderMessages: (orderNumber: string, contact: string) =>
+    request<{ order_id: number; store_id: number; customer_name: string; messages: readonly OrderMessage[] }>(
+      `/store/orders/${encodeURIComponent(orderNumber)}/messages?contact=${encodeURIComponent(contact)}`,
+    ),
+  sendOrderMessage: (orderNumber: string, payload: { contact: string; message_text: string }) =>
+    request<OrderMessage>(`/store/orders/${encodeURIComponent(orderNumber)}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }),
 };
@@ -117,7 +205,7 @@ const DEFAULT_SETTINGS: StoreSettings = {
       bank: 'Banesco (0134)',
       phone: '0414-5550199',
       document_id: 'J-50123456-0',
-      holder_name: 'AutoFrío PRO C.A.',
+      holder_name: 'NEXORA C.A.',
     },
     transferencia: {
       enabled: true,
@@ -125,18 +213,18 @@ const DEFAULT_SETTINGS: StoreSettings = {
       account_number: '0134-0946-33-0001234567',
       account_type: 'Corriente',
       document_id: 'J-50123456-0',
-      holder_name: 'AutoFrío PRO C.A.',
+      holder_name: 'NEXORA C.A.',
     },
     zelle: {
       enabled: true,
-      email: 'pagos@autofriopro-demo.com',
-      holder_name: 'AutoFrio PRO LLC',
+      email: 'pagos@nexora-demo.com',
+      holder_name: 'NEXORA LLC',
     },
     binance: {
       enabled: true,
       pay_id: '518904321',
-      email: 'binance@autofriopro-demo.com',
-      holder_name: 'AutoFrioPro_Pay',
+      email: 'binance@nexora-demo.com',
+      holder_name: 'Nexora_Pay',
     },
   },
 };
@@ -146,3 +234,6 @@ export const useStoreSettings = () =>
 
 export const useProducts = (qs: string) =>
   useRemote(() => storeApi.products(qs).then((d) => d.items), mockProducts, [qs]);
+
+export const useTrendingSearches = (limit = 6) =>
+  useRemote(() => storeApi.trendingSearches(limit).then((d) => d.items), mockTrendingSearches, [limit]);

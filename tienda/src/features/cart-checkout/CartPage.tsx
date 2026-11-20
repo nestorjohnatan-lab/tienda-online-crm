@@ -54,7 +54,7 @@ export function CartPage() {
               {lines.length === 0 ? (
                 <div className="amz-empty">
                   <ShoppingCart size={36} strokeWidth={1.5} />
-                  <h2>Tu carrito de AutoFrío PRO está vacío</h2>
+                  <h2>Tu carrito de NEXORA está vacío</h2>
                   <p>Explora compresores A/C, condensadores, gases R134a e iluminación LED para tu vehículo.</p>
                   <Link to="/catalogo" className="btn btn--primary btn--pill">
                     Explorar catálogo

@@ -15,17 +15,17 @@ import { ProductCard, ProductSkeleton } from '../../shared/ui/molecules/ProductC
 import { HeroCarousel } from './HeroCarousel';
 
 const BENEFITS = [
-  { Icon: Truck, title: 'Envíos a Todo el País', sub: 'Despacho rápido a talleres' },
+  { Icon: Truck, title: 'Envíos a Todo el País', sub: 'Despacho rápido y seguro' },
   { Icon: ShieldCheck, title: 'Pagos Seguros', sub: 'Pedidos idempotentes 100%' },
-  { Icon: Snowflake, title: 'Soporte Técnico A/C', sub: 'Verificación por código OEM' },
+  { Icon: Snowflake, title: 'Catálogo Verificado', sub: 'Marcas y vendedores seleccionados' },
   { Icon: Award, title: 'Calidad Garantizada', sub: 'Stock real conectado al CRM' },
 ] as const;
 
 const WHY_US = [
-  { Icon: CheckCircle2, title: 'Repuestos Certificados', sub: 'Estándar OEM comprobado' },
+  { Icon: CheckCircle2, title: 'Productos Certificados', sub: 'Garantía y respaldo directo' },
   { Icon: Truck, title: 'Envío Rápido y Seguro', sub: 'Seguimiento por número de orden' },
-  { Icon: Headphones, title: 'Asesoría Especializada', sub: 'Compatibilidad garantizada' },
-  { Icon: Star, title: 'Confianza en Talleres', sub: 'Cientos de flotas atendidas' },
+  { Icon: Headphones, title: 'Atención Especializada', sub: 'Soporte previo y postventa' },
+  { Icon: Star, title: 'Confianza en Clientes', sub: 'Cientos de entregas exitosas' },
 ] as const;
 
 const REVIEWS = [
@@ -48,7 +48,8 @@ const REVIEWS = [
 
 export function HomePage() {
   const categories = useCategories();
-  const products = useProducts('?featured=true&page_size=4');
+  const bestSellers = useProducts('?sort=bestsellers&page_size=4');
+  const mostSearched = useProducts('?sort=most_searched&page_size=4');
 
   return (
     <>
@@ -75,7 +76,7 @@ export function HomePage() {
           <header className="section__head">
             <div>
               <p className="eyebrow">Compra por categoría</p>
-              <h2>Encuentra el repuesto ideal para tu vehículo</h2>
+              <h2>Encuentra lo que buscas en NEXORA</h2>
             </div>
             <Link to="/catalogo" className="link-arrow">
               Ver todo el catálogo <ArrowRight size={14} />
@@ -94,16 +95,16 @@ export function HomePage() {
           <header className="section__head">
             <div>
               <p className="eyebrow">Más vendidos</p>
-              <h2>Refrigeración vehicular y accesorios top</h2>
+              <h2>Lo más vendido en NEXORA</h2>
             </div>
-            <Link to="/catalogo" className="link-arrow link-arrow--dark">
+            <Link to="/catalogo?sort=bestsellers" className="link-arrow link-arrow--dark">
               Ver todos <ArrowRight size={14} />
             </Link>
           </header>
           <div className="grid grid--prods">
-            {products.loading
+            {bestSellers.loading
               ? Array.from({ length: 4 }, (_, i) => <ProductSkeleton key={i} />)
-              : products.data.map((p) => <ProductCard key={p.product_id} product={p} />)}
+              : bestSellers.data.map((p) => <ProductCard key={p.product_id} product={p} />)}
           </div>
         </div>
       </section>
@@ -119,15 +120,15 @@ export function HomePage() {
             />
           </div>
           <div className="promo__copy">
-            <p className="eyebrow">Climatización &amp; desempeño</p>
+            <p className="eyebrow">Marketplace NEXORA</p>
             <h2>
-              Haz que tu vehículo <span className="accent">rinda al máximo</span>
+              Todo lo que necesitas <span className="accent">en un solo lugar</span>
             </h2>
             <p>
-              Compresores OEM, condensadores de aluminio e iluminación LED de alta potencia respaldados con inventario en tiempo real desde nuestro CRM.
+              Explora productos destacados, descubre las tendencias de búsqueda y compra con inventario en tiempo real conectado a nuestro CRM.
             </p>
             <Link to="/catalogo" className="btn btn--outline">
-              Explorar todos los productos <ArrowRight size={15} />
+              Explorar el marketplace <ArrowRight size={15} />
             </Link>
           </div>
         </div>
@@ -136,7 +137,7 @@ export function HomePage() {
       <section className="section section--light why-us">
         <div className="container">
           <p className="eyebrow">Por qué elegirnos</p>
-          <h2>La Diferencia AutoFrío PRO</h2>
+          <h2>La Diferencia NEXORA</h2>
           <div className="why-us__grid">
             {WHY_US.map(({ Icon, title, sub }) => (
               <div key={title} className="why-item">
@@ -149,6 +150,25 @@ export function HomePage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section section--dark">
+        <div className="container">
+          <header className="section__head">
+            <div>
+              <p className="eyebrow">Tendencia de búsqueda</p>
+              <h2>Más buscados por los clientes</h2>
+            </div>
+            <Link to="/catalogo?sort=most_searched" className="link-arrow link-arrow--dark">
+              Explorar tendencias <ArrowRight size={14} />
+            </Link>
+          </header>
+          <div className="grid grid--prods">
+            {mostSearched.loading
+              ? Array.from({ length: 4 }, (_, i) => <ProductSkeleton key={i} />)
+              : mostSearched.data.map((p) => <ProductCard key={p.product_id} product={p} />)}
           </div>
         </div>
       </section>

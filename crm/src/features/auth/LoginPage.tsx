@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from './AuthContext';
+import { NexoraLogo } from '../../shared/ui/atoms/NexoraLogo';
 
 export function LoginPage() {
   const { signIn } = useAuth();
@@ -23,7 +24,9 @@ export function LoginPage() {
   return (
     <main className="login">
       <form className="login__card" onSubmit={onSubmit}>
-        <h1>Auto<b>Frío</b> <small>CRM</small></h1>
+        <div className="login__brand">
+          <NexoraLogo subtitle="MARKET · CRM" size="md" tone="light" />
+        </div>
         <p className="muted">Acceso exclusivo para el equipo interno.</p>
         <label>Correo<input name="email" type="email" required autoComplete="username" /></label>
         <label>Contraseña<input name="password" type="password" required minLength={6} autoComplete="current-password" /></label>

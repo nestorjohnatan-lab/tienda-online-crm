@@ -38,6 +38,9 @@ export interface StoreCategory {
 
 export interface StoreProductSummary {
   readonly product_id: number;
+  readonly store_id?: number;
+  readonly store_name?: string;
+  readonly store_slug?: string;
   readonly sku: string;
   readonly oem_code: string | null;
   readonly name: string;
@@ -56,6 +59,14 @@ export interface StoreProductSummary {
   readonly rating_count: number;
   readonly thumbnail_url: string | null;
   readonly is_featured: boolean;
+  readonly sold_count?: number;
+  readonly search_count?: number;
+  readonly popularity_score?: number;
+}
+
+export interface TrendingSearchTerm {
+  readonly term: string;
+  readonly search_count: number;
 }
 
 export interface PaymentAccountsConfig {
@@ -101,6 +112,10 @@ export interface StoreUser {
   readonly full_name: string;
   readonly email: string;
   readonly role: string;
+  readonly phone?: string | null;
+  readonly shipping_address?: string | null;
+  readonly city?: string | null;
+  readonly document_id?: string | null;
 }
 
 export interface RegisterCustomerRequest {
@@ -111,6 +126,86 @@ export interface RegisterCustomerRequest {
   readonly document_id?: string | null;
   readonly shipping_address: string;
   readonly city: string;
+}
+
+export interface MarketplaceStore {
+  readonly store_id: number;
+  readonly name: string;
+  readonly slug: string;
+  readonly description: string | null;
+  readonly logo_url: string | null;
+  readonly banner_url: string | null;
+  readonly city: string | null;
+  readonly phone: string | null;
+  readonly email: string | null;
+  readonly rating_average: number;
+  readonly rating_count: number;
+  readonly sales_count: number;
+  readonly response_rate_pct: number;
+  readonly is_verified: boolean;
+  readonly products_count: number;
+}
+
+export interface ProductDetail extends StoreProductSummary {
+  readonly short_description: string | null;
+  readonly description: string | null;
+  readonly technical_specs: Record<string, unknown> | null;
+  readonly store: {
+    readonly store_id: number;
+    readonly name: string;
+    readonly slug: string;
+    readonly city: string | null;
+    readonly rating_average: number;
+    readonly rating_count: number;
+    readonly sales_count: number;
+    readonly response_rate_pct: number;
+    readonly is_verified: boolean;
+  };
+  readonly images: readonly {
+    readonly product_image_id: number;
+    readonly image_url: string;
+    readonly image_alt: string;
+    readonly display_order: number;
+    readonly is_primary: boolean;
+  }[];
+}
+
+export interface ProductQuestion {
+  readonly question_id: number;
+  readonly product_id: number;
+  readonly store_id: number;
+  readonly customer_name: string;
+  readonly question_text: string;
+  readonly answer_text: string | null;
+  readonly answered_at: string | null;
+  readonly status: 'pending' | 'answered' | 'hidden';
+  readonly created_at: string;
+}
+
+export interface ProductReview {
+  readonly review_id: number;
+  readonly product_id: number;
+  readonly store_id: number;
+  readonly order_id: number;
+  readonly reviewer_name: string;
+  readonly product_rating: number;
+  readonly seller_rating: number;
+  readonly title: string | null;
+  readonly comment: string;
+  readonly seller_reply: string | null;
+  readonly seller_replied_at: string | null;
+  readonly is_verified_purchase: boolean;
+  readonly created_at: string;
+}
+
+export interface OrderMessage {
+  readonly message_id: number;
+  readonly order_id: number;
+  readonly store_id: number;
+  readonly sender_role: 'buyer' | 'seller';
+  readonly sender_name: string;
+  readonly message_text: string;
+  readonly created_at: string;
 }
 
 export interface CreateStoreOrderRequest {

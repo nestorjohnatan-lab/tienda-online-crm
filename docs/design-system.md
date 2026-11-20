@@ -10,20 +10,20 @@ Este documento traduce el lenguaje visual de la referencia automotriz (alto cont
 
 | Token CSS | Valor | Uso Principal |
 | :--- | :--- | :--- |
-| `--color-bg-dark` | `#0B0D11` | Navbar, Hero, sección Más Vendidos, banners promocionales, footer |
-| `--color-surface-dark` | `#131720` | Tarjetas de producto sobre fondo oscuro, paneles secundarios, sidebar del CRM |
-| `--color-surface-dark-elevated` | `#1A202C` | Inputs en modo oscuro, hover de tarjetas, barras de métricas |
-| `--color-border-dark` | `#252C3A` | Bordes sutiles de tarjetas y divisores en secciones oscuras |
-| `--color-bg-light` | `#FFFFFF` | Sección de Categorías, "Por qué elegirnos", vistas de lectura del CRM |
-| `--color-surface-light` | `#F5F7FA` | Tarjetas de categoría, tablas suaves y estados de hover claros |
-| `--color-border-light` | `#E2E8F0` | Bordes de tarjetas claras y tablas administrativas |
-| `--color-accent-primary` | `#E51A2E` | CTA principal ("Comprar ahora", "Agregar al carrito"), subrayado activo, badge del carrito, iconos clave |
-| `--color-accent-primary-hover` | `#C81426` | Estado hover/active de botones primarios |
+| `--color-bg-dark` | `#14171C` | **Graphite Carbon** — Navbar, Hero, sección Más Vendidos, banners promocionales, footer |
+| `--color-surface-dark` | `#1C2027` | Tarjetas de producto sobre fondo oscuro, paneles secundarios, sidebar del CRM |
+| `--color-surface-dark-elevated` | `#232830` | Inputs en modo oscuro, hover de tarjetas, barras de métricas |
+| `--color-border-dark` | `#2A303B` | Bordes sutiles de tarjetas y divisores en secciones oscuras |
+| `--color-bg-light` | `#FFFFFF` | **Pure White** — Sección de Categorías, "Por qué elegirnos", tarjetas y vistas de lectura |
+| `--color-surface-light` | `#F5F6F8` | **Mist Grey** — Fondo operativo del CRM, tarjetas de categoría, tablas suaves y estados hover claros |
+| `--color-border-light` | `#E3E6EC` | Bordes de tarjetas claras y tablas administrativas |
+| `--color-accent-primary` | `#E62129` | **Signal Red** — CTA principal ("Comprar ahora", "Agregar al carrito"), subrayado activo, badge del carrito, iconos clave |
+| `--color-accent-primary-hover` | `#C81920` | Estado hover/active de botones primarios |
 | `--color-accent-cool` | `#0EA5E9` | Acento técnico opcional para badges de **Refrigeración / A/C** (ej. R134a, R1234yf, frío) |
-| `--color-text-on-dark` | `#F8FAFC` | Títulos y texto principal sobre fondo oscuro |
-| `--color-text-muted-dark` | `#94A3B8` | Subtítulos, descripciones y metadatos en secciones oscuras |
-| `--color-text-on-light` | `#0F172A` | Títulos y texto principal sobre fondo claro |
-| `--color-text-muted-light` | `#475569` | Descripciones en secciones claras |
+| `--color-text-on-dark` | `#FFFFFF` | Títulos y texto principal sobre fondo oscuro |
+| `--color-text-muted-dark` | `#A0A6B1` | Subtítulos, descripciones y metadatos en secciones oscuras |
+| `--color-text-on-light` | `#14171C` | Títulos y texto principal sobre fondo claro |
+| `--color-text-muted-light` | `#525866` | Descripciones en secciones claras |
 | `--color-rating` | `#F59E0B` | Estrellas de valoración |
 | `--color-success` | `#16A34A` | Stock disponible, pedido entregado, banner activo |
 | `--color-warning` | `#D97706` | Alerta de stock bajo, pedido pendiente |

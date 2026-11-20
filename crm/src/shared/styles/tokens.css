@@ -4,20 +4,20 @@
  */
 
 :root {
-  --color-sidebar-bg: #0b0d11;
-  --color-sidebar-surface: #131720;
-  --color-sidebar-border: #252c3a;
-  --color-sidebar-text: #f8fafc;
-  --color-sidebar-muted: #94a3b8;
+  --color-sidebar-bg: #14171c;
+  --color-sidebar-surface: #1c2027;
+  --color-sidebar-border: #2a303b;
+  --color-sidebar-text: #ffffff;
+  --color-sidebar-muted: #a0a6b1;
 
-  --color-app-bg: #f5f7fa;
+  --color-app-bg: #f5f6f8;
   --color-card-bg: #ffffff;
-  --color-card-border: #e2e8f0;
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
+  --color-card-border: #e3e6ec;
+  --color-text-primary: #14171c;
+  --color-text-secondary: #525866;
 
-  --color-accent-primary: #e51a2e;
-  --color-accent-primary-hover: #c81426;
+  --color-accent-primary: #e62129;
+  --color-accent-primary-hover: #c81920;
   --color-accent-cool: #0ea5e9;
 
   --color-success: #16a34a;
@@ -31,4 +31,12 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+
+  /* Bordes sutiles de alto contraste */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-light-subtle: rgba(0, 0, 0, 0.08);
+
+  /* Curvas Emil Kowalski */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-tactile: cubic-bezier(0.32, 0.72, 0, 1);
 }

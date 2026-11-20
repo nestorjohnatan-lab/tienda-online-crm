@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Copy, CreditCard, ImagePlus, Receipt, Trash2, UserCheck } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, Copy, CreditCard, ImagePlus, Receipt, Trash2, UserCheck } from 'lucide-react';
 import { authApi, storeApi, useStoreSettings } from '../../shared/api/client';
 import type {
   CreateStoreOrderRequest,
@@ -56,6 +56,10 @@ export function CheckoutPage() {
         setUser(s.user);
         setFullName((prev) => prev || s.user.full_name);
         setEmail((prev) => prev || s.user.email);
+        setPhone((prev) => prev || s.user.phone || '');
+        setAddress((prev) => prev || s.user.shipping_address || '');
+        setCity((prev) => prev || s.user.city || '');
+        setDocumentId((prev) => prev || s.user.document_id || '');
       })
       .catch(() => undefined);
   }, []);
@@ -65,11 +69,13 @@ export function CheckoutPage() {
       <section className="section section--dark section--page">
         <div className="container narrow">
           <div className="checkout-card checkout-done">
-            <CheckCircle2 size={44} className="accent" />
+            <div className="checkout-done__icon">
+              <CheckCircle2 size={36} />
+            </div>
             <h1 className="page-title">¡Pedido registrado!</h1>
             <p>
-              Tu número de orden es <strong className="accent">{done.order_number}</strong> por{' '}
-              <strong>{money(done.total_amount, done.currency)}</strong>.
+              Tu número de orden es <strong className="accent checkout-done__order">{done.order_number}</strong> por{' '}
+              <strong className="tabular-nums">{money(done.total_amount, done.currency)}</strong>.
             </p>
             <p className="muted">Nuestro equipo verificará tu pago y coordinará el despacho.</p>
             <Link to="/" className="btn btn--primary btn--pill">Volver a la tienda</Link>
@@ -120,6 +126,10 @@ export function CheckoutPage() {
         setUser(session.user);
         setFullName(session.user.full_name);
         setEmail(session.user.email);
+        setPhone((prev) => prev || session.user.phone || '');
+        setAddress((prev) => prev || session.user.shipping_address || '');
+        setCity((prev) => prev || session.user.city || '');
+        setDocumentId((prev) => prev || session.user.document_id || '');
         setStep(2);
       }
     } catch (err) {
@@ -200,11 +210,11 @@ export function CheckoutPage() {
         {/* Indicador de 3 pasos (Mobile-First) */}
         <ol className="stepper" aria-label="Pasos del checkout">
           <li className={step === 1 ? 'is-active' : step > 1 ? 'is-done' : ''}>
-            <span>1</span>
+            <span>{step > 1 ? <Check size={13} /> : '1'}</span>
             <strong>Cuenta</strong>
           </li>
           <li className={step === 2 ? 'is-active' : step > 2 ? 'is-done' : ''}>
-            <span>2</span>
+            <span>{step > 2 ? <Check size={13} /> : '2'}</span>
             <strong>Confirmar monto</strong>
           </li>
           <li className={step === 3 ? 'is-active' : ''}>
@@ -440,8 +450,8 @@ export function CheckoutPage() {
                         <span>Teléfono:</span>
                         <b>{settings.payment_accounts.pago_movil.phone || '—'}</b>
                         {settings.payment_accounts.pago_movil.phone && (
-                          <button type="button" className="copy-btn" onClick={() => copyValue('pm-tel', settings.payment_accounts.pago_movil.phone)}>
-                            <Copy size={12} /> {copiedField === 'pm-tel' ? 'Copiado' : 'Copiar'}
+                          <button type="button" className={`copy-btn ${copiedField === 'pm-tel' ? 'is-copied' : ''}`} onClick={() => copyValue('pm-tel', settings.payment_accounts.pago_movil.phone)}>
+                            {copiedField === 'pm-tel' ? <Check size={12} /> : <Copy size={12} />} {copiedField === 'pm-tel' ? 'Copiado' : 'Copiar'}
                           </button>
                         )}
                       </li>
@@ -449,8 +459,8 @@ export function CheckoutPage() {
                         <span>Cédula / RIF:</span>
                         <b>{settings.payment_accounts.pago_movil.document_id || '—'}</b>
                         {settings.payment_accounts.pago_movil.document_id && (
-                          <button type="button" className="copy-btn" onClick={() => copyValue('pm-doc', settings.payment_accounts.pago_movil.document_id)}>
-                            <Copy size={12} /> {copiedField === 'pm-doc' ? 'Copiado' : 'Copiar'}
+                          <button type="button" className={`copy-btn ${copiedField === 'pm-doc' ? 'is-copied' : ''}`} onClick={() => copyValue('pm-doc', settings.payment_accounts.pago_movil.document_id)}>
+                            {copiedField === 'pm-doc' ? <Check size={12} /> : <Copy size={12} />} {copiedField === 'pm-doc' ? 'Copiado' : 'Copiar'}
                           </button>
                         )}
                       </li>
@@ -467,8 +477,8 @@ export function CheckoutPage() {
                         <span>Cuenta:</span>
                         <b className="mono">{settings.payment_accounts.transferencia.account_number || '—'}</b>
                         {settings.payment_accounts.transferencia.account_number && (
-                          <button type="button" className="copy-btn" onClick={() => copyValue('tr-acc', settings.payment_accounts.transferencia.account_number)}>
-                            <Copy size={12} /> {copiedField === 'tr-acc' ? 'Copiado' : 'Copiar'}
+                          <button type="button" className={`copy-btn ${copiedField === 'tr-acc' ? 'is-copied' : ''}`} onClick={() => copyValue('tr-acc', settings.payment_accounts.transferencia.account_number)}>
+                            {copiedField === 'tr-acc' ? <Check size={12} /> : <Copy size={12} />} {copiedField === 'tr-acc' ? 'Copiado' : 'Copiar'}
                           </button>
                         )}
                       </li>
@@ -485,8 +495,8 @@ export function CheckoutPage() {
                         <span>Correo Zelle:</span>
                         <b>{settings.payment_accounts.zelle.email || 'Por configurar en CRM'}</b>
                         {settings.payment_accounts.zelle.email && (
-                          <button type="button" className="copy-btn" onClick={() => copyValue('zl-mail', settings.payment_accounts.zelle.email)}>
-                            <Copy size={12} /> {copiedField === 'zl-mail' ? 'Copiado' : 'Copiar'}
+                          <button type="button" className={`copy-btn ${copiedField === 'zl-mail' ? 'is-copied' : ''}`} onClick={() => copyValue('zl-mail', settings.payment_accounts.zelle.email)}>
+                            {copiedField === 'zl-mail' ? <Check size={12} /> : <Copy size={12} />} {copiedField === 'zl-mail' ? 'Copiado' : 'Copiar'}
                           </button>
                         )}
                       </li>
@@ -502,8 +512,8 @@ export function CheckoutPage() {
                         <span>Binance Pay ID:</span>
                         <b className="mono">{settings.payment_accounts.binance.pay_id || 'Por configurar en CRM'}</b>
                         {settings.payment_accounts.binance.pay_id && (
-                          <button type="button" className="copy-btn" onClick={() => copyValue('bn-id', settings.payment_accounts.binance.pay_id)}>
-                            <Copy size={12} /> {copiedField === 'bn-id' ? 'Copiado' : 'Copiar'}
+                          <button type="button" className={`copy-btn ${copiedField === 'bn-id' ? 'is-copied' : ''}`} onClick={() => copyValue('bn-id', settings.payment_accounts.binance.pay_id)}>
+                            {copiedField === 'bn-id' ? <Check size={12} /> : <Copy size={12} />} {copiedField === 'bn-id' ? 'Copiado' : 'Copiar'}
                           </button>
                         )}
                       </li>

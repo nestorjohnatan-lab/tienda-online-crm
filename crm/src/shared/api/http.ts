@@ -83,3 +83,17 @@ export async function api<T>(
     throw err;
   }
 }
+
+export const API_ORIGIN = BASE_URL.replace(/\/api\/v1\/?$/, '');
+export const resolveMediaUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  if (url.startsWith('/media/uploads/')) return `${API_ORIGIN}${url}`;
+  return url;
+};
+
+export async function uploadImageDataUrl(dataUrl: string): Promise<{ url: string }> {
+  return api<{ url: string }>('/uploads/images', {
+    method: 'POST',
+    body: { data_url: dataUrl },
+  });
+}

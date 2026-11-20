@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { api } from '../../shared/api/http';
-import type { CrmSaleSummary, OrderStatus } from '../../shared/api/contracts';
+import type { CrmSaleSummary, OrderMessage, OrderStatus } from '../../shared/api/contracts';
 import { useQuery, money, dateTime } from '../../shared/api/useQuery';
 import { PageState, StatusPill } from '../../shared/ui/molecules/Common';
 
@@ -24,6 +24,9 @@ export function SalesPage() {
   const q = useQuery<{ items: CrmSaleSummary[] }>(`/sales?page_size=100${status ? `&order_status=${status}` : ''}`);
   const [msg, setMsg] = useState<string | null>(null);
   const [detail, setDetail] = useState<SaleDetail | null>(null);
+  const [chatOrder, setChatOrder] = useState<CrmSaleSummary | null>(null);
+  const [chatMsgs, setChatMsgs] = useState<OrderMessage[]>([]);
+  const [chatText, setChatText] = useState('');
 
   const change = async (s: CrmSaleSummary, next: OrderStatus) => {
     if (next === 'cancelado' && !confirm(`Cancelar ${s.order_number}? El stock se devolverá al inventario.`)) return;
@@ -43,6 +46,32 @@ export function SalesPage() {
       setDetail(d);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'No se pudo cargar el detalle');
+    }
+  };
+
+  const openChat = async (s: CrmSaleSummary) => {
+    setChatOrder(s);
+    setChatText('');
+    try {
+      const list = await api<OrderMessage[]>(`/sales/${s.order_id}/messages`);
+      setChatMsgs(list);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'No se pudo abrir el chat');
+    }
+  };
+
+  const sendChat = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!chatOrder || !chatText.trim()) return;
+    try {
+      const created = await api<OrderMessage>(`/sales/${chatOrder.order_id}/messages`, {
+        method: 'POST',
+        body: { message_text: chatText.trim() },
+      });
+      setChatMsgs((prev) => [...prev, created]);
+      setChatText('');
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : 'No se pudo enviar');
     }
   };
 
@@ -68,6 +97,7 @@ export function SalesPage() {
                   <td className="num">{money(s.total_amount, s.currency)}</td><td>{dateTime(s.created_at)}</td>
                   <td className="actions">
                     <button className="btn btn--sm" onClick={() => void openReceipt(s.order_id)}>Comprobante</button>
+                    <button className="btn btn--sm" onClick={() => void openChat(s)}>Chat</button>
                     {FLOW[s.order_status].map((n) => (
                       <button key={n} className={`btn btn--sm ${n === 'cancelado' ? 'btn--danger' : ''}`} onClick={() => change(s, n)}>{n}</button>
                     ))}
@@ -102,6 +132,40 @@ export function SalesPage() {
             <footer className="modal__foot">
               <button type="button" className="btn btn--primary" onClick={() => setDetail(null)}>Cerrar</button>
             </footer>
+          </div>
+        </div>
+      )}
+
+      {chatOrder && (
+        <div className="modal" role="dialog" aria-modal="true" aria-label="Chat del pedido">
+          <button type="button" className="modal__backdrop" onClick={() => setChatOrder(null)} aria-label="Cerrar" />
+          <div className="modal__card modal__card--sm form">
+            <header className="modal__head">
+              <h2>Chat · {chatOrder.order_number}</h2>
+              <button type="button" className="modal__close" onClick={() => setChatOrder(null)}>✕</button>
+            </header>
+            <div className="stack" style={{ maxHeight: '18rem', overflowY: 'auto' }}>
+              {chatMsgs.length === 0 ? (
+                <p className="muted">Sin mensajes todavía.</p>
+              ) : (
+                chatMsgs.map((m) => (
+                  <div key={m.message_id} className="card" style={{ padding: '0.55rem 0.75rem' }}>
+                    <small className="muted">{m.sender_role === 'buyer' ? `Comprador (${m.sender_name})` : `Tú (${m.sender_name})`}</small>
+                    <p style={{ margin: '2px 0 0' }}>{m.message_text}</p>
+                  </div>
+                ))
+              )}
+            </div>
+            <form className="row" onSubmit={(e) => void sendChat(e)}>
+              <input
+                required
+                placeholder="Responder al comprador..."
+                value={chatText}
+                onChange={(e) => setChatText(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button className="btn btn--primary btn--sm">Enviar</button>
+            </form>
           </div>
         </div>
       )}

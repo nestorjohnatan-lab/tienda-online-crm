@@ -26,7 +26,7 @@ const EMPTY_ACCOUNTS: PaymentAccounts = {
     bank: 'Banesco (0134)',
     phone: '0414-5550199',
     document_id: 'J-50123456-0',
-    holder_name: 'AutoFrío PRO C.A.',
+    holder_name: 'NEXORA C.A.',
   },
   transferencia: {
     enabled: true,
@@ -34,18 +34,18 @@ const EMPTY_ACCOUNTS: PaymentAccounts = {
     account_number: '0134-0946-33-0001234567',
     account_type: 'Corriente',
     document_id: 'J-50123456-0',
-    holder_name: 'AutoFrío PRO C.A.',
+    holder_name: 'NEXORA C.A.',
   },
   zelle: {
     enabled: true,
-    email: 'pagos@autofriopro-demo.com',
-    holder_name: 'AutoFrio PRO LLC',
+    email: 'pagos@nexora-demo.com',
+    holder_name: 'NEXORA LLC',
   },
   binance: {
     enabled: true,
     pay_id: '518904321',
-    email: 'binance@autofriopro-demo.com',
-    holder_name: 'AutoFrioPro_Pay',
+    email: 'binance@nexora-demo.com',
+    holder_name: 'Nexora_Pay',
   },
 };
 
@@ -156,7 +156,7 @@ export function StoreSettingsPage() {
                   </label>
                   <label>
                     Titular
-                    <input placeholder="AutoFrío PRO C.A." value={accounts.pago_movil.holder_name} onChange={(e) => setAccounts({ ...accounts, pago_movil: { ...accounts.pago_movil, holder_name: e.target.value } })} />
+                    <input placeholder="NEXORA C.A." value={accounts.pago_movil.holder_name} onChange={(e) => setAccounts({ ...accounts, pago_movil: { ...accounts.pago_movil, holder_name: e.target.value } })} />
                   </label>
                 </div>
               </section>
@@ -195,7 +195,7 @@ export function StoreSettingsPage() {
                   </label>
                   <label>
                     Titular
-                    <input placeholder="AutoFrío PRO C.A." value={accounts.transferencia.holder_name} onChange={(e) => setAccounts({ ...accounts, transferencia: { ...accounts.transferencia, holder_name: e.target.value } })} />
+                    <input placeholder="NEXORA C.A." value={accounts.transferencia.holder_name} onChange={(e) => setAccounts({ ...accounts, transferencia: { ...accounts.transferencia, holder_name: e.target.value } })} />
                   </label>
                 </div>
               </section>
@@ -215,11 +215,11 @@ export function StoreSettingsPage() {
                 </div>
                 <label>
                   Correo Zelle
-                  <input type="email" placeholder="pagos@autofrio.com" value={accounts.zelle.email} onChange={(e) => setAccounts({ ...accounts, zelle: { ...accounts.zelle, email: e.target.value } })} />
+                  <input type="email" placeholder="pagos@nexora.com" value={accounts.zelle.email} onChange={(e) => setAccounts({ ...accounts, zelle: { ...accounts.zelle, email: e.target.value } })} />
                 </label>
                 <label>
                   Titular de la cuenta
-                  <input placeholder="AutoFrio LLC" value={accounts.zelle.holder_name} onChange={(e) => setAccounts({ ...accounts, zelle: { ...accounts.zelle, holder_name: e.target.value } })} />
+                  <input placeholder="NEXORA LLC" value={accounts.zelle.holder_name} onChange={(e) => setAccounts({ ...accounts, zelle: { ...accounts.zelle, holder_name: e.target.value } })} />
                 </label>
               </section>
 
@@ -243,11 +243,11 @@ export function StoreSettingsPage() {
                 <div className="grid grid--2">
                   <label>
                     Correo Binance
-                    <input type="email" placeholder="binance@autofrio.com" value={accounts.binance.email} onChange={(e) => setAccounts({ ...accounts, binance: { ...accounts.binance, email: e.target.value } })} />
+                    <input type="email" placeholder="binance@nexora.com" value={accounts.binance.email} onChange={(e) => setAccounts({ ...accounts, binance: { ...accounts.binance, email: e.target.value } })} />
                   </label>
                   <label>
                     Alias / Titular
-                    <input placeholder="AutoFrioPro" value={accounts.binance.holder_name} onChange={(e) => setAccounts({ ...accounts, binance: { ...accounts.binance, holder_name: e.target.value } })} />
+                    <input placeholder="Nexora_Pay" value={accounts.binance.holder_name} onChange={(e) => setAccounts({ ...accounts, binance: { ...accounts.binance, holder_name: e.target.value } })} />
                   </label>
                 </div>
               </section>

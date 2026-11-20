@@ -33,6 +33,10 @@ export class CatalogService {
     return this.catalogRepo.listStoreProducts(query);
   }
 
+  listTrendingSearches(limit: number) {
+    return this.catalogRepo.listTrendingSearches(limit);
+  }
+
   async getStoreProductBySlug(slug: string) {
     const product = await this.catalogRepo.findStoreProductBySlug(slug);
     if (!product) throw new NotFoundError(`Producto '${slug}' no encontrado`);
@@ -40,6 +44,7 @@ export class CatalogService {
   }
 
   listCrmProducts(params: {
+    store_id?: number | null;
     q?: string | undefined;
     product_line?: ProductLine | undefined;
     low_stock_only?: boolean | undefined;
@@ -53,14 +58,14 @@ export class CatalogService {
     return this.catalogRepo.createProduct(input, actorUserId);
   }
 
-  async updateProduct(productId: number, input: UpdateProductInput) {
-    const updated = await this.catalogRepo.updateProduct(productId, input);
+  async updateProduct(productId: number, input: UpdateProductInput, storeId?: number | null) {
+    const updated = await this.catalogRepo.updateProduct(productId, input, storeId);
     if (!updated) throw new NotFoundError(`Producto ${productId} no encontrado`);
     return updated;
   }
 
-  async updateProductStatus(productId: number, isActive: boolean) {
-    const updated = await this.catalogRepo.updateProductStatus(productId, isActive);
+  async updateProductStatus(productId: number, isActive: boolean, storeId?: number | null) {
+    const updated = await this.catalogRepo.updateProductStatus(productId, isActive, storeId);
     if (!updated) throw new NotFoundError(`Producto ${productId} no encontrado`);
     return updated;
   }

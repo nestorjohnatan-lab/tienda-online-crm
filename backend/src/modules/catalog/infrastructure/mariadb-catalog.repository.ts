@@ -1,5 +1,6 @@
 import type { PaginatedData } from '../../../shared/contracts/api-response.js';
 import { dbPool, withTransaction } from '../../../shared/infrastructure/database/pool.js';
+import { computePopularityScore, normalizeSearchTerm } from '../domain/popularity-score.js';
 import type {
   CatalogRepositoryPort,
   CategoryEntity,
@@ -9,6 +10,7 @@ import type {
   StoreProductDetail,
   StoreProductQuery,
   StoreProductSummary,
+  TrendingSearchTerm,
   UpdateProductInput,
   UpsertCategoryInput,
 } from '../domain/catalog.repository.js';
@@ -80,6 +82,17 @@ interface SvaProductRow {
   estado: string;
   created_at: Date;
 }
+
+const POPULARITY_SQL =
+  '((COALESCE(sales_agg.sold_count, 0) * 3.0 + COALESCE(p.search_count, 0) * 1.2 + p.rating_average * LN(1 + p.rating_count) * 0.8 + (CASE WHEN p.is_featured = 1 THEN 5 ELSE 0 END)) * (CASE WHEN p.stock_quantity > 0 THEN 1 ELSE 0.35 END))';
+
+const SALES_AGG_JOIN = `LEFT JOIN (
+  SELECT oi.product_id, COALESCE(SUM(oi.quantity), 0) AS sold_count
+    FROM order_items oi
+    INNER JOIN orders o ON o.order_id = oi.order_id
+   WHERE o.order_status <> 'cancelado'
+   GROUP BY oi.product_id
+) sales_agg ON sales_agg.product_id = p.product_id`;
 
 export class MariaDbCatalogRepository implements CatalogRepositoryPort {
   async listStoreCategories(_featuredOnly?: boolean): Promise<readonly CategoryEntity[]> {
@@ -180,6 +193,9 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
     const whereClause = conditions.join(' AND ');
     const orderByMap: Record<StoreProductQuery['sort'], string> = {
       featured: 'p.stock_actual DESC, p.id DESC',
+      popular: 'p.stock_actual DESC, p.id DESC',
+      bestsellers: 'p.stock_actual DESC, p.id DESC',
+      most_searched: 'p.stock_actual DESC, p.id DESC',
       price_asc: 'p.precio_usd ASC',
       price_desc: 'p.precio_usd DESC',
       newest: 'p.id DESC',
@@ -207,6 +223,14 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
       [...params, query.page_size, offset],
     )) as SvaProductRow[];
 
+    const normalizedTerm = query.page === 1 ? normalizeSearchTerm(query.q) : null;
+    if (normalizedTerm) {
+      await this.recordSearchSignals(
+        normalizedTerm,
+        rows.map((r) => Number(r.id)),
+      );
+    }
+
     return {
       items: rows.map((r) => this.mapStoreSummary(r)),
       pagination: {
@@ -216,6 +240,46 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
         total_pages: Math.max(1, Math.ceil(totalItems / query.page_size)),
       },
     };
+  }
+
+  async listTrendingSearches(limit: number): Promise<readonly TrendingSearchTerm[]> {
+    try {
+      const rows = (await dbPool.query(
+        `SELECT term, search_count
+           FROM product_search_terms
+          ORDER BY search_count DESC, last_searched_at DESC
+          LIMIT ?`,
+        [limit],
+      )) as { term: string; search_count: number }[];
+      return rows.map((r) => ({
+        term: r.term,
+        search_count: Number(r.search_count),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async recordSearchSignals(term: string, productIds: readonly number[]): Promise<void> {
+    try {
+      await dbPool.query(
+        `INSERT INTO product_search_terms (term, search_count)
+         VALUES (?, 1)
+         ON DUPLICATE KEY UPDATE search_count = search_count + 1, last_searched_at = CURRENT_TIMESTAMP`,
+        [term],
+      );
+      if (productIds.length > 0) {
+        const placeholders = productIds.map(() => '?').join(', ');
+        await dbPool.query(
+          `UPDATE products
+              SET search_count = search_count + 1
+            WHERE product_id IN (${placeholders}) AND deleted_at IS NULL`,
+          [...productIds],
+        );
+      }
+    } catch {
+      // Telemetría de búsqueda: no bloquea la respuesta del catálogo si la migración aún no se aplicó
+    }
   }
 
   async findStoreProductBySlug(slug: string): Promise<StoreProductDetail | null> {
@@ -244,6 +308,17 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
         marca: row.color ?? 'OEM',
         garantia: 'Garantía certificada de fábrica',
       },
+      store: {
+        store_id: 1,
+        name: 'NEXORA Oficial',
+        slug: 'nexora-oficial',
+        city: 'Valencia',
+        rating_average: 4.9,
+        rating_count: 24,
+        sales_count: 58,
+        response_rate_pct: 98,
+        is_verified: true,
+      },
       images: [
         {
           product_image_id: 1,
@@ -257,6 +332,7 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
   }
 
   async listCrmProducts(params: {
+    store_id?: number | null;
     q?: string | undefined;
     product_line?: ProductLine | undefined;
     low_stock_only?: boolean | undefined;
@@ -266,6 +342,10 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
     const conditions: string[] = ['1 = 1'];
     const sqlParams: unknown[] = [];
 
+    if (params.store_id !== undefined && params.store_id !== null) {
+      conditions.push('p.store_id = ?');
+      sqlParams.push(params.store_id);
+    }
     if (params.q) {
       conditions.push('(p.nombre LIKE ? OR p.codigo LIKE ?)');
       const like = `%${params.q}%`;
@@ -306,6 +386,9 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
   }
 
   async createProduct(input: CreateProductInput, _actorUserId: number): Promise<CrmProductItem> {
+    const gallery = (input.gallery_urls ?? []).filter((u) => u.trim().length > 0);
+    const primaryThumbnail = input.thumbnail_url ?? gallery[0] ?? null;
+
     const productId = await withTransaction(async (conn) => {
       const res = (await conn.query(
         `INSERT INTO productos
@@ -319,7 +402,7 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
           input.category_id,
           input.vehicle_compatibility ?? 'Universal',
           input.brand ?? 'OEM',
-          input.thumbnail_url,
+          primaryThumbnail,
           input.cost_price,
           input.profit_margin_pct,
           input.tax_rate_pct,
@@ -350,7 +433,11 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
   async updateProduct(
     productId: number,
     input: UpdateProductInput,
+    _storeId?: number | null,
   ): Promise<CrmProductItem | null> {
+    const gallery = input.gallery_urls ? input.gallery_urls.filter((u) => u.trim().length > 0) : undefined;
+    const primaryThumbnail = input.thumbnail_url ?? gallery?.[0] ?? null;
+
     const res = (await dbPool.query(
       `UPDATE productos
           SET categoria_id = ?, codigo = ?, nombre = ?, descripcion = ?,
@@ -365,7 +452,7 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
         input.description ?? input.short_description,
         input.vehicle_compatibility,
         input.brand,
-        input.thumbnail_url,
+        primaryThumbnail,
         input.cost_price,
         input.profit_margin_pct,
         input.tax_rate_pct,
@@ -380,7 +467,11 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
     return this.findCrmProductById(productId);
   }
 
-  async updateProductStatus(productId: number, isActive: boolean): Promise<CrmProductItem | null> {
+  async updateProductStatus(
+    productId: number,
+    isActive: boolean,
+    _storeId?: number | null,
+  ): Promise<CrmProductItem | null> {
     const res = (await dbPool.query(
       `UPDATE productos SET estado = ? WHERE id = ?`,
       [isActive ? 'activo' : 'inactivo', productId],
@@ -417,6 +508,26 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
     return row ? this.mapCrmProduct(row) : null;
   }
 
+  private async fetchGalleryMap(productIds: readonly number[]): Promise<Map<number, string[]>> {
+    const map = new Map<number, string[]>();
+    if (productIds.length === 0) return map;
+    const placeholders = productIds.map(() => '?').join(', ');
+    const rows = (await dbPool.query(
+      `SELECT product_id, image_url
+         FROM product_images
+        WHERE product_id IN (${placeholders}) AND deleted_at IS NULL
+        ORDER BY is_primary DESC, display_order ASC`,
+      [...productIds],
+    )) as { product_id: number; image_url: string }[];
+    for (const r of rows) {
+      const pid = Number(r.product_id);
+      const list = map.get(pid) ?? [];
+      list.push(r.image_url);
+      map.set(pid, list);
+    }
+    return map;
+  }
+
   private mapCategory(r: SvaCategoryRow): CategoryEntity {
     const catName = r.nombre;
     return {
@@ -438,8 +549,12 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
   private mapStoreSummary(r: SvaProductRow): StoreProductSummary {
     const stock = Number(r.stock_actual);
     const catName = r.categoria_nombre ?? 'General';
+    const inStock = stock > 0;
     return {
       product_id: Number(r.id),
+      store_id: 1,
+      store_name: 'NEXORA Oficial',
+      store_slug: 'nexora-oficial',
       sku: r.codigo,
       oem_code: r.codigo.startsWith('AC-') ? r.codigo : null,
       name: r.nombre,
@@ -453,15 +568,25 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
       compare_at_price: null,
       currency: 'USD',
       stock_quantity: stock,
-      in_stock: stock > 0,
+      in_stock: inStock,
       rating_average: 4.9,
       rating_count: 24,
       thumbnail_url: r.imagen,
       is_featured: true,
+      sold_count: 0,
+      search_count: 0,
+      popularity_score: computePopularityScore({
+        soldCount: 0,
+        searchCount: 0,
+        ratingAverage: 4.9,
+        ratingCount: 24,
+        isFeatured: true,
+        inStock,
+      }),
     };
   }
 
-  private mapCrmProduct(r: SvaProductRow): CrmProductItem {
+  private mapCrmProduct(r: SvaProductRow, galleryUrls: readonly string[] = []): CrmProductItem {
     const summary = this.mapStoreSummary(r);
     const minStock = Number(r.stock_minimo);
     return {
@@ -474,6 +599,7 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
       min_stock_threshold: minStock,
       is_active: r.estado === 'activo',
       is_low_stock: summary.stock_quantity <= minStock,
+      gallery_urls: galleryUrls.length > 0 ? galleryUrls : r.imagen ? [r.imagen] : [],
     };
   }
 }

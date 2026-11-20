@@ -19,6 +19,7 @@ export interface AuthUserContext {
   readonly email: string;
   readonly role: UserRole;
   readonly full_name: string;
+  readonly store_id: number | null;
 }
 
 declare global {
@@ -108,6 +109,7 @@ interface JwtAccessPayload {
   email: string;
   role: UserRole;
   full_name: string;
+  store_id?: number | null;
 }
 
 export function authenticateJwt(req: Request, _res: Response, next: NextFunction): void {
@@ -130,6 +132,7 @@ export function authenticateJwt(req: Request, _res: Response, next: NextFunction
       email: decoded.email,
       role: decoded.role,
       full_name: decoded.full_name,
+      store_id: decoded.store_id != null ? Number(decoded.store_id) : null,
     };
     next();
   } catch {

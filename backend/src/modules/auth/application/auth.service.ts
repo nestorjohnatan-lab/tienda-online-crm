@@ -14,6 +14,11 @@ export interface SessionResult {
     readonly full_name: string;
     readonly email: string;
     readonly role: UserEntity['role'];
+    readonly store_id: number | null;
+    readonly phone: string | null;
+    readonly shipping_address: string | null;
+    readonly city: string | null;
+    readonly document_id: string | null;
   };
 }
 
@@ -107,6 +112,7 @@ export class AuthService {
         email: user.email,
         role: user.role,
         full_name: user.full_name,
+        store_id: user.store_id,
       },
       env.JWT_ACCESS_SECRET,
       { expiresIn: env.JWT_ACCESS_TTL_SECONDS },
@@ -132,6 +138,11 @@ export class AuthService {
         full_name: user.full_name,
         email: user.email,
         role: user.role,
+        store_id: user.store_id,
+        phone: user.phone ?? null,
+        shipping_address: user.shipping_address ?? null,
+        city: user.city ?? null,
+        document_id: user.document_id ?? null,
       },
     };
   }

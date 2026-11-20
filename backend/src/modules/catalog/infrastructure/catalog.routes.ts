@@ -21,6 +21,7 @@ const storeCategoriesQuery = z.object({
 const storeProductsQuery = z.object({
   q: z.string().trim().max(120).optional(),
   category_slug: z.string().trim().max(140).optional(),
+  store_slug: z.string().trim().max(160).optional(),
   product_line: productLineEnum.optional(),
   featured: z
     .enum(['true', 'false'])
@@ -32,9 +33,24 @@ const storeProductsQuery = z.object({
     .transform((v) => (v === undefined ? undefined : v === 'true')),
   min_price: z.coerce.number().min(0).optional(),
   max_price: z.coerce.number().min(0).optional(),
-  sort: z.enum(['featured', 'price_asc', 'price_desc', 'newest', 'rating_desc']).default('featured'),
+  sort: z
+    .enum([
+      'featured',
+      'popular',
+      'bestsellers',
+      'most_searched',
+      'price_asc',
+      'price_desc',
+      'newest',
+      'rating_desc',
+    ])
+    .default('featured'),
   page: z.coerce.number().int().min(1).default(1),
   page_size: z.coerce.number().int().min(1).max(48).default(12),
+});
+
+const trendingSearchesQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(12).default(6),
 });
 
 const crmProductsQuery = z.object({
@@ -82,6 +98,7 @@ const baseProductFields = {
   currency: z.string().trim().length(3).default('USD'),
   min_stock_threshold: z.coerce.number().int().min(0).default(5),
   thumbnail_url: z.string().trim().max(500).nullable().optional().default(null),
+  gallery_urls: z.array(z.string().trim().min(1).max(500)).max(8).optional().default([]),
   is_featured: z.boolean().default(false),
   is_active: z.boolean().default(true),
 };
@@ -114,6 +131,16 @@ export function createStoreCatalogRouter(catalogService: CatalogService): Router
         req.query as unknown as z.infer<typeof storeProductsQuery>,
       );
       res.status(200).json(okResponse(data, 'Catálogo obtenido'));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/trending-searches', validateQuery(trendingSearchesQuery), async (req, res, next) => {
+    try {
+      const limit = Number(req.query.limit ?? 6);
+      const items = await catalogService.listTrendingSearches(limit);
+      res.status(200).json(okResponse({ items }, 'Búsquedas populares obtenidas'));
     } catch (err) {
       next(err);
     }
@@ -179,9 +206,10 @@ export function createCrmCatalogRouter(catalogService: CatalogService): Router {
     validateQuery(crmProductsQuery),
     async (req, res, next) => {
       try {
-        const data = await catalogService.listCrmProducts(
-          req.query as unknown as z.infer<typeof crmProductsQuery>,
-        );
+        const data = await catalogService.listCrmProducts({
+          ...(req.query as unknown as z.infer<typeof crmProductsQuery>),
+          store_id: req.authUser!.store_id,
+        });
         res.status(200).json(okResponse(data, 'Productos del CRM obtenidos'));
       } catch (err) {
         next(err);
@@ -195,7 +223,10 @@ export function createCrmCatalogRouter(catalogService: CatalogService): Router {
     validateBody(createProductSchema),
     async (req, res, next) => {
       try {
-        const created = await catalogService.createProduct(req.body, req.authUser!.user_id);
+        const created = await catalogService.createProduct(
+          { ...req.body, store_id: req.authUser!.store_id ?? 1 },
+          req.authUser!.user_id,
+        );
         res.status(201).json(okResponse(created, 'Producto creado correctamente'));
       } catch (err) {
         next(err);
@@ -210,7 +241,11 @@ export function createCrmCatalogRouter(catalogService: CatalogService): Router {
     validateBody(updateProductSchema),
     async (req, res, next) => {
       try {
-        const updated = await catalogService.updateProduct(Number(req.params.product_id), req.body);
+        const updated = await catalogService.updateProduct(
+          Number(req.params.product_id),
+          req.body,
+          req.authUser!.store_id,
+        );
         res.status(200).json(okResponse(updated, 'Producto actualizado correctamente'));
       } catch (err) {
         next(err);
@@ -228,6 +263,7 @@ export function createCrmCatalogRouter(catalogService: CatalogService): Router {
         const updated = await catalogService.updateProductStatus(
           Number(req.params.product_id),
           Boolean((req.body as { is_active: boolean }).is_active),
+          req.authUser!.store_id,
         );
         res.status(200).json(okResponse(updated, 'Estado del producto actualizado'));
       } catch (err) {

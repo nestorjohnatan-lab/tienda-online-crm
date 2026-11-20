@@ -1,3 +1,4 @@
+import path from 'node:path';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { Router } from 'express';
@@ -6,6 +7,12 @@ import helmet from 'helmet';
 import { AuthService } from './modules/auth/application/auth.service.js';
 import { createAuthRouter } from './modules/auth/infrastructure/auth.routes.js';
 import { MariaDbAuthRepository } from './modules/auth/infrastructure/mariadb-auth.repository.js';
+import { MarketplaceService } from './modules/marketplace/application/marketplace.service.js';
+import {
+  createCrmMarketplaceRouter,
+  createStoreMarketplaceRouter,
+} from './modules/marketplace/infrastructure/marketplace.routes.js';
+import { MariaDbMarketplaceRepository } from './modules/marketplace/infrastructure/mariadb-marketplace.repository.js';
 import { BannerService } from './modules/banners/application/banner.service.js';
 import {
   createCrmBannerRouter,
@@ -52,7 +59,11 @@ export function createApp(): express.Express {
   app.disable('x-powered-by');
 
   // Seguridad HTTP por defecto (Defense in Depth / Secure by Default)
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.use(
     cors({
       origin: [env.CORS_TIENDA_ORIGIN, env.CORS_CRM_ORIGIN],
@@ -76,7 +87,9 @@ export function createApp(): express.Express {
   app.use(requestIdMiddleware);
 
   // Dependencias (Ports & Adapters)
-  const authService = new AuthService(new MariaDbAuthRepository());
+  const authRepo = new MariaDbAuthRepository();
+  const authService = new AuthService(authRepo);
+  const marketplaceService = new MarketplaceService(new MariaDbMarketplaceRepository(), authRepo);
   const bannerService = new BannerService(new MariaDbBannerRepository());
   const catalogService = new CatalogService(new MariaDbCatalogRepository());
   const inventoryService = new InventoryService(new MariaDbInventoryRepository());
@@ -106,6 +119,9 @@ export function createApp(): express.Express {
     );
   });
 
+  // Archivos subidos (fotos de productos, logos, banners)
+  app.use('/media/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
+
   // Observabilidad
   app.use('/health', createHealthRouter());
 
@@ -118,6 +134,7 @@ export function createApp(): express.Express {
   storeRouter.use('/banners', createStoreBannerRouter(bannerService));
   storeRouter.use('/settings', createStoreSettingsRouter(settingsService));
   storeRouter.use('/', createStoreCatalogRouter(catalogService));
+  storeRouter.use('/', createStoreMarketplaceRouter(marketplaceService));
   storeRouter.use('/orders', createStoreOrderRouter(saleService));
   apiV1.use('/store', storeRouter);
 
@@ -127,6 +144,7 @@ export function createApp(): express.Express {
   crmRouter.use('/dashboard', createCrmDashboardRouter(saleService));
   crmRouter.use('/banners', createCrmBannerRouter(bannerService));
   crmRouter.use('/', createCrmCatalogRouter(catalogService));
+  crmRouter.use('/', createCrmMarketplaceRouter(marketplaceService));
   crmRouter.use('/inventory', createCrmInventoryRouter(inventoryService));
   crmRouter.use('/customers', createCrmCustomerRouter(customerService));
   crmRouter.use('/sales', createCrmSalesRouter(saleService));

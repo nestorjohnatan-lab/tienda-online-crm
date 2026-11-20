@@ -13,6 +13,11 @@ interface UserRow {
   email: string;
   password_hash: string;
   role: UserRole;
+  store_id: number | null;
+  phone: string | null;
+  shipping_address: string | null;
+  city: string | null;
+  document_id: string | null;
   is_active: number;
 }
 
@@ -43,10 +48,12 @@ function mapSvaRole(svaRol: string): UserRole {
 export class MariaDbAuthRepository implements AuthRepositoryPort {
   async findUserByEmail(email: string): Promise<UserEntity | null> {
     const rows = (await dbPool.query(
-      `SELECT id AS user_id, nombre AS full_name, email, password AS password_hash,
-              rol AS role, IF(estado = 'activo', 1, 0) AS is_active
-         FROM usuarios
-        WHERE email = ?
+      `SELECT u.id AS user_id, u.nombre AS full_name, u.email, u.password AS password_hash,
+              u.rol AS role, NULL AS store_id, IF(u.estado = 'activo', 1, 0) AS is_active,
+              c.telefono AS phone, c.direccion AS shipping_address, NULL AS city, c.cedula_rif AS document_id
+         FROM usuarios u
+         LEFT JOIN clientes c ON c.id = u.cliente_id
+        WHERE u.email = ?
         LIMIT 1`,
       [email.toLowerCase()],
     )) as UserRow[];
@@ -57,10 +64,12 @@ export class MariaDbAuthRepository implements AuthRepositoryPort {
 
   async findUserById(userId: number): Promise<UserEntity | null> {
     const rows = (await dbPool.query(
-      `SELECT id AS user_id, nombre AS full_name, email, password AS password_hash,
-              rol AS role, IF(estado = 'activo', 1, 0) AS is_active
-         FROM usuarios
-        WHERE id = ?
+      `SELECT u.id AS user_id, u.nombre AS full_name, u.email, u.password AS password_hash,
+              u.rol AS role, NULL AS store_id, IF(u.estado = 'activo', 1, 0) AS is_active,
+              c.telefono AS phone, c.direccion AS shipping_address, NULL AS city, c.cedula_rif AS document_id
+         FROM usuarios u
+         LEFT JOIN clientes c ON c.id = u.cliente_id
+        WHERE u.id = ?
         LIMIT 1`,
       [userId],
     )) as UserRow[];
@@ -186,6 +195,11 @@ export class MariaDbAuthRepository implements AuthRepositoryPort {
       email: row.email,
       password_hash: row.password_hash,
       role: mapSvaRole(String(row.role)),
+      store_id: row.store_id != null ? Number(row.store_id) : null,
+      phone: row.phone ?? null,
+      shipping_address: row.shipping_address ?? null,
+      city: row.city ?? null,
+      document_id: row.document_id ?? null,
       is_active: Boolean(row.is_active),
     };
   }

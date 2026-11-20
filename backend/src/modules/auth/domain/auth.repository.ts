@@ -6,6 +6,11 @@ export interface UserEntity {
   readonly email: string;
   readonly password_hash: string;
   readonly role: UserRole;
+  readonly store_id: number | null;
+  readonly phone?: string | null;
+  readonly shipping_address?: string | null;
+  readonly city?: string | null;
+  readonly document_id?: string | null;
   readonly is_active: boolean;
 }
 

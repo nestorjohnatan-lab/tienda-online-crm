@@ -20,9 +20,12 @@ mariadb < "${ROOT_DIR}/database/migrations/003_store_settings.sql"
 mariadb < "${ROOT_DIR}/database/migrations/004_product_pricing_model.sql"
 mariadb < "${ROOT_DIR}/database/migrations/005_bcv_exchange_rate.sql"
 mariadb < "${ROOT_DIR}/database/migrations/006_payment_methods_and_receipts.sql"
+mariadb < "${ROOT_DIR}/database/migrations/007_product_search_popularity.sql"
+mariadb < "${ROOT_DIR}/database/migrations/008_marketplace_saas.sql"
 
 echo "[2/4] Cargando categorías, productos y banners iniciales..."
 mariadb < "${ROOT_DIR}/database/seeds/001_catalog_seed.sql"
+mariadb < "${ROOT_DIR}/database/seeds/002_marketplace_demo_seed.sql"
 
 echo "[3/4] Creando usuario PoLP '${DB_USER}'..."
 mariadb -e "

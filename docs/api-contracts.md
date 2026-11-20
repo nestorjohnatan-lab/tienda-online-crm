@@ -183,8 +183,9 @@
   - `featured`: `true` | `false`.
   - `in_stock`: `true` | `false`.
   - `min_price`, `max_price`: rango decimal.
-  - `sort`: `featured` | `price_asc` | `price_desc` | `newest` | `rating_desc`.
+  - `sort`: `featured` | `popular` | `bestsellers` | `most_searched` | `price_asc` | `price_desc` | `newest` | `rating_desc`.
   - `page` (default `1`), `page_size` (default `12`, máx `48`).
+  - Nota: cuando `q` tiene al menos 2 caracteres y `page=1`, el backend registra el término en `product_search_terms` e incrementa `search_count` en los productos coincidentes.
 - **Response `200`:**
   ```json
   {
@@ -210,7 +211,10 @@
           "rating_average": 4.9,
           "rating_count": 34,
           "thumbnail_url": "/media/products/ac-cmp-001.webp",
-          "is_featured": true
+          "is_featured": true,
+          "sold_count": 18,
+          "search_count": 42,
+          "popularity_score": 117.4
         }
       ],
       "pagination": {
@@ -221,6 +225,22 @@
       }
     },
     "message": "Catálogo obtenido"
+  }
+  ```
+
+#### `GET /api/v1/store/trending-searches`
+- Query param opcional: `limit` (entero `1..12`, default `6`).
+- **Response `200`:**
+  ```json
+  {
+    "status": "success",
+    "data": {
+      "items": [
+        { "term": "compresor", "search_count": 24 },
+        { "term": "r134a", "search_count": 19 }
+      ]
+    },
+    "message": "Búsquedas populares obtenidas"
   }
   ```
 
@@ -409,3 +429,44 @@ Los endpoints `GET /api/v1/crm/products`, `POST /api/v1/crm/products` y `PUT /ap
   - `binance`: `{ enabled, pay_id, email, holder_name }`
 - `POST /api/v1/store/orders` acepta `payment_method` en `efectivo | transferencia | tarjeta | pago_movil | zelle | binance | otro` y el campo opcional `payment_receipt_data` (Data URL de imagen de captura de pago, máx. 2 MB).
 - `GET /api/v1/crm/sales/:order_id` devuelve `payment_receipt_data` para revisión en el CRM.
+
+---
+
+## 6. Marketplace SaaS Multi-Tienda, Q&A, Mensajería y Reseñas (v1.1)
+
+### 6.1 Tiendas Públicas y Registro de Vendedor (`/api/v1/store/stores`)
+| Método | Ruta | Descripción | Códigos |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/store/stores` | Lista tiendas activas del marketplace con reputación (`rating_average`, `rating_count`, `sales_count`). | `200` |
+| `GET` | `/api/v1/store/stores/:slug` | Perfil público de una tienda y sus productos activos. | `200`, `404` |
+| `POST` | `/api/v1/store/stores/register` | Registro público SaaS: crea una nueva tienda + usuario dueño (`role: admin`, `store_id`) y devuelve tokens JWT. | `201`, `400`, `409`, `422` |
+
+### 6.2 Detalle de Producto, Galería Multi-Foto, Q&A y Reseñas
+| Método | Ruta | Descripción | Códigos |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/store/products/:slug` | Incluye `images[]` (galería multi-foto), `store` (resumen de tienda vendedora), `questions[]` (Q&A público) y `reviews[]` (reseñas verificadas). | `200`, `404` |
+| `GET` | `/api/v1/store/products/:product_id/questions` | Lista preguntas públicas del producto. | `200`, `404` |
+| `POST` | `/api/v1/store/products/:product_id/questions` | Cliente publica una pregunta sobre el producto (`customer_name`, `question_text`, opcional `customer_email`). | `201`, `400`, `404` |
+| `GET` | `/api/v1/store/products/:product_id/reviews` | Lista reseñas verificadas del producto con resumen de estrellas y atención de tienda. | `200`, `404` |
+| `POST` | `/api/v1/store/products/:product_id/reviews` | Cliente que compró el producto publica reseña verificada (`order_number`, `customer_email_or_phone`, `product_rating` 1-5, `seller_rating` 1-5, `title`, `comment`). | `201`, `400`, `403`, `404`, `409` |
+
+### 6.3 Seguimiento y Chat Privado de Pedido (Comprador ↔ Tienda)
+| Método | Ruta | Descripción | Códigos |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/store/orders/:order_number/messages?contact=...` | Lista mensajes del pedido verificando número de orden + teléfono/correo del comprador. | `200`, `403`, `404` |
+| `POST` | `/api/v1/store/orders/:order_number/messages` | Comprador envía mensaje privado a la tienda del pedido. | `201`, `400`, `403`, `404` |
+
+### 6.4 Gestión Multi-Tienda, Fotos, Preguntas, Chat y Reseñas en CRM (`/api/v1/crm`)
+> Todas las operaciones del CRM se aíslan automáticamente por `user.store_id` cuando el usuario pertenece a una tienda (`store_id != null`).
+
+| Método | Ruta | Descripción | Códigos |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/v1/crm/uploads/images` | Sube imagen (Base64/Data URL hasta 3 MB) y devuelve `{ url }` en `/media/uploads/...`. | `201`, `400`, `401` |
+| `GET` | `/api/v1/crm/stores/me` | Obtiene perfil de la tienda actual (o lista de tiendas si es super-admin). | `200`, `401` |
+| `PUT` | `/api/v1/crm/stores/me` | Actualiza nombre, descripción, ciudad, teléfono, logo y banner de la tienda. | `200`, `400`, `401` |
+| `GET` | `/api/v1/crm/questions` | Lista preguntas de clientes dirigidas a los productos de la tienda. | `200`, `401` |
+| `POST` | `/api/v1/crm/questions/:question_id/answer` | Tienda responde una pregunta (`{ answer_text }`). | `200`, `400`, `404` |
+| `GET` | `/api/v1/crm/sales/:order_id/messages` | Lee chat privado de un pedido de la tienda. | `200`, `404` |
+| `POST` | `/api/v1/crm/sales/:order_id/messages` | Tienda envía mensaje al comprador del pedido. | `201`, `400`, `404` |
+| `GET` | `/api/v1/crm/reviews` | Lista reseñas recibidas por productos de la tienda. | `200`, `401` |
+| `POST` | `/api/v1/crm/reviews/:review_id/reply` | Tienda responde públicamente una reseña (`{ seller_reply }`). | `200`, `400`, `404` |

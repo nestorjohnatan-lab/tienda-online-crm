@@ -7,90 +7,88 @@ import {
   type UpdateStoreSettingsInput,
 } from '../domain/settings.repository.js';
 
-interface SettingsRow {
-  free_shipping_threshold: number;
-  free_shipping_enabled: number;
-  currency: string;
-  bcv_rate: number;
-  show_bs_prices: number;
-  payment_accounts: string | null;
-  updated_at: Date;
-}
-
 export class MariaDbSettingsRepository implements SettingsRepositoryPort {
   async getSettings(): Promise<StoreSettingsEntity> {
-    const rows = (await dbPool.query(
-      `SELECT free_shipping_threshold, free_shipping_enabled, currency,
-              bcv_rate, show_bs_prices, payment_accounts, updated_at
-         FROM store_settings
-        WHERE setting_id = 1
-        LIMIT 1`,
-    )) as SettingsRow[];
+    try {
+      const configRows = (await dbPool.query(
+        `SELECT clave, valor FROM configuracion WHERE clave IN (
+          'tasa_bcv', 'moneda_principal',
+          'pago_movil_banco', 'pago_movil_telefono', 'pago_movil_rif',
+          'transf_banco', 'transf_cuenta', 'transf_titular', 'transf_rif',
+          'zelle_email', 'zelle_titular', 'binance_pay_id', 'binance_email'
+        )`,
+      )) as { clave: string; valor: string }[];
 
-    const row = rows[0];
-    if (!row) {
+      const configMap: Record<string, string> = {};
+      for (const row of configRows) {
+        configMap[row.clave] = row.valor;
+      }
+
+      const bcvRate = Number(configMap['tasa_bcv']) || 88.00;
+      const currency = (configMap['moneda_principal'] || 'USD').toUpperCase();
+
+      const paymentAccounts: PaymentAccountsConfig = {
+        pago_movil: {
+          enabled: true,
+          bank: configMap['pago_movil_banco'] || 'Banesco (0134)',
+          phone: configMap['pago_movil_telefono'] || '0414-0000000',
+          document_id: configMap['pago_movil_rif'] || 'J-00000000-0',
+          holder_name: configMap['transf_titular'] || 'Mi Empresa C.A.',
+        },
+        transferencia: {
+          enabled: true,
+          bank: configMap['transf_banco'] || 'Banesco Banco Universal',
+          account_number: configMap['transf_cuenta'] || '0134-0000-00-0000000000',
+          account_type: 'Corriente',
+          document_id: configMap['transf_rif'] || 'J-00000000-0',
+          holder_name: configMap['transf_titular'] || 'Mi Empresa C.A.',
+        },
+        zelle: {
+          enabled: Boolean(configMap['zelle_email']),
+          email: configMap['zelle_email'] || 'pagos@empresa.com',
+          holder_name: configMap['zelle_titular'] || 'Mi Empresa LLC',
+        },
+        binance: {
+          enabled: Boolean(configMap['binance_pay_id'] || configMap['binance_email']),
+          pay_id: configMap['binance_pay_id'] || '',
+          email: configMap['binance_email'] || '',
+          holder_name: 'Binance Pay',
+        },
+      };
+
+      return {
+        free_shipping_threshold: 150,
+        free_shipping_enabled: true,
+        currency,
+        bcv_rate: bcvRate,
+        show_bs_prices: true,
+        payment_accounts: paymentAccounts,
+        updated_at: new Date().toISOString(),
+      };
+    } catch {
       return {
         free_shipping_threshold: 150,
         free_shipping_enabled: true,
         currency: 'USD',
-        bcv_rate: 50,
+        bcv_rate: 88.00,
         show_bs_prices: true,
         payment_accounts: DEFAULT_PAYMENT_ACCOUNTS,
         updated_at: new Date().toISOString(),
       };
     }
-
-    let paymentAccounts = DEFAULT_PAYMENT_ACCOUNTS;
-    if (row.payment_accounts) {
-      try {
-        paymentAccounts = {
-          ...DEFAULT_PAYMENT_ACCOUNTS,
-          ...(JSON.parse(row.payment_accounts) as Partial<PaymentAccountsConfig>),
-        };
-      } catch {
-        paymentAccounts = DEFAULT_PAYMENT_ACCOUNTS;
-      }
-    }
-
-    return {
-      free_shipping_threshold: Number(row.free_shipping_threshold),
-      free_shipping_enabled: Boolean(row.free_shipping_enabled),
-      currency: row.currency,
-      bcv_rate: Number(row.bcv_rate ?? 50),
-      show_bs_prices: Boolean(row.show_bs_prices ?? 1),
-      payment_accounts: paymentAccounts,
-      updated_at: new Date(row.updated_at).toISOString(),
-    };
   }
 
   async updateSettings(
     input: UpdateStoreSettingsInput,
-    actorUserId: number,
+    _actorUserId: number,
   ): Promise<StoreSettingsEntity> {
-    await dbPool.query(
-      `INSERT INTO store_settings
-        (setting_id, free_shipping_threshold, free_shipping_enabled, currency,
-         bcv_rate, show_bs_prices, payment_accounts, updated_by)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         free_shipping_threshold = VALUES(free_shipping_threshold),
-         free_shipping_enabled = VALUES(free_shipping_enabled),
-         currency = VALUES(currency),
-         bcv_rate = VALUES(bcv_rate),
-         show_bs_prices = VALUES(show_bs_prices),
-         payment_accounts = VALUES(payment_accounts),
-         updated_by = VALUES(updated_by)`,
-      [
-        input.free_shipping_threshold,
-        input.free_shipping_enabled ? 1 : 0,
-        input.currency.toUpperCase(),
-        input.bcv_rate,
-        input.show_bs_prices ? 1 : 0,
-        JSON.stringify(input.payment_accounts),
-        actorUserId,
-      ],
-    );
-
+    if (input.bcv_rate !== undefined) {
+      await dbPool.query(
+        `INSERT INTO configuracion (clave, valor) VALUES ('tasa_bcv', ?)
+         ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
+        [String(input.bcv_rate)],
+      );
+    }
     return this.getSettings();
   }
 }

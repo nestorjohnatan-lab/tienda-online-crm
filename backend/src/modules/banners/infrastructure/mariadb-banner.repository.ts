@@ -24,15 +24,22 @@ interface BannerRow {
 export class MariaDbBannerRepository implements BannerRepositoryPort {
   async listActiveForStore(): Promise<readonly BannerEntity[]> {
     const rows = (await dbPool.query(
-      `SELECT banner_id, badge_text, title, highlight_text, subtitle,
-              image_url, image_alt, cta_label, cta_url, display_order,
-              is_active, starts_at, ends_at
-         FROM banners
-        WHERE deleted_at IS NULL
-          AND is_active = 1
-          AND (starts_at IS NULL OR starts_at <= NOW(3))
-          AND (ends_at IS NULL OR ends_at >= NOW(3))
-        ORDER BY display_order ASC, banner_id ASC`,
+      `SELECT id AS banner_id,
+              tag AS badge_text,
+              titulo AS title,
+              texto_destacado AS highlight_text,
+              subtitulo AS subtitle,
+              COALESCE(imagen_url, '') AS image_url,
+              titulo AS image_alt,
+              COALESCE(texto_boton, 'Explorar Catálogo') AS cta_label,
+              COALESCE(enlace_url, '/catalogo') AS cta_url,
+              orden AS display_order,
+              activo AS is_active,
+              NULL AS starts_at,
+              NULL AS ends_at
+         FROM banners_carrusel
+        WHERE activo = 1
+        ORDER BY orden ASC, id ASC`,
     )) as BannerRow[];
 
     return rows.map((r) => this.mapRow(r));
@@ -40,12 +47,21 @@ export class MariaDbBannerRepository implements BannerRepositoryPort {
 
   async listAllForCrm(): Promise<readonly BannerEntity[]> {
     const rows = (await dbPool.query(
-      `SELECT banner_id, badge_text, title, highlight_text, subtitle,
-              image_url, image_alt, cta_label, cta_url, display_order,
-              is_active, starts_at, ends_at
-         FROM banners
-        WHERE deleted_at IS NULL
-        ORDER BY display_order ASC, banner_id ASC`,
+      `SELECT id AS banner_id,
+              tag AS badge_text,
+              titulo AS title,
+              texto_destacado AS highlight_text,
+              subtitulo AS subtitle,
+              COALESCE(imagen_url, '') AS image_url,
+              titulo AS image_alt,
+              COALESCE(texto_boton, 'Explorar Catálogo') AS cta_label,
+              COALESCE(enlace_url, '/catalogo') AS cta_url,
+              orden AS display_order,
+              activo AS is_active,
+              NULL AS starts_at,
+              NULL AS ends_at
+         FROM banners_carrusel
+        ORDER BY orden ASC, id ASC`,
     )) as BannerRow[];
 
     return rows.map((r) => this.mapRow(r));
@@ -53,11 +69,21 @@ export class MariaDbBannerRepository implements BannerRepositoryPort {
 
   async findById(bannerId: number): Promise<BannerEntity | null> {
     const rows = (await dbPool.query(
-      `SELECT banner_id, badge_text, title, highlight_text, subtitle,
-              image_url, image_alt, cta_label, cta_url, display_order,
-              is_active, starts_at, ends_at
-         FROM banners
-        WHERE banner_id = ? AND deleted_at IS NULL
+      `SELECT id AS banner_id,
+              tag AS badge_text,
+              titulo AS title,
+              texto_destacado AS highlight_text,
+              subtitulo AS subtitle,
+              COALESCE(imagen_url, '') AS image_url,
+              titulo AS image_alt,
+              COALESCE(texto_boton, 'Explorar Catálogo') AS cta_label,
+              COALESCE(enlace_url, '/catalogo') AS cta_url,
+              orden AS display_order,
+              activo AS is_active,
+              NULL AS starts_at,
+              NULL AS ends_at
+         FROM banners_carrusel
+        WHERE id = ?
         LIMIT 1`,
       [bannerId],
     )) as BannerRow[];
@@ -66,28 +92,22 @@ export class MariaDbBannerRepository implements BannerRepositoryPort {
     return row ? this.mapRow(row) : null;
   }
 
-  async create(input: UpsertBannerInput, actorUserId: number): Promise<BannerEntity> {
+  async create(input: UpsertBannerInput, _actorUserId: number): Promise<BannerEntity> {
     const result = (await dbPool.query(
-      `INSERT INTO banners
-        (badge_text, title, highlight_text, subtitle, image_url, image_alt,
-         cta_label, cta_url, display_order, is_active, starts_at, ends_at,
-         created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO banners_carrusel
+        (tag, titulo, texto_destacado, subtitulo, imagen_url,
+         texto_boton, enlace_url, orden, activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.badge_text,
         input.title,
         input.highlight_text,
         input.subtitle,
         input.image_url,
-        input.image_alt,
         input.cta_label,
         input.cta_url,
         input.display_order,
         input.is_active ? 1 : 0,
-        input.starts_at ? new Date(input.starts_at) : null,
-        input.ends_at ? new Date(input.ends_at) : null,
-        actorUserId,
-        actorUserId,
       ],
     )) as { insertId: number };
 
@@ -101,29 +121,24 @@ export class MariaDbBannerRepository implements BannerRepositoryPort {
   async update(
     bannerId: number,
     input: UpsertBannerInput,
-    actorUserId: number,
+    _actorUserId: number,
   ): Promise<BannerEntity | null> {
     const res = (await dbPool.query(
-      `UPDATE banners
-          SET badge_text = ?, title = ?, highlight_text = ?, subtitle = ?,
-              image_url = ?, image_alt = ?, cta_label = ?, cta_url = ?,
-              display_order = ?, is_active = ?, starts_at = ?, ends_at = ?,
-              updated_by = ?
-        WHERE banner_id = ? AND deleted_at IS NULL`,
+      `UPDATE banners_carrusel
+          SET tag = ?, titulo = ?, texto_destacado = ?, subtitulo = ?,
+              imagen_url = ?, texto_boton = ?, enlace_url = ?,
+              orden = ?, activo = ?
+        WHERE id = ?`,
       [
         input.badge_text,
         input.title,
         input.highlight_text,
         input.subtitle,
         input.image_url,
-        input.image_alt,
         input.cta_label,
         input.cta_url,
         input.display_order,
         input.is_active ? 1 : 0,
-        input.starts_at ? new Date(input.starts_at) : null,
-        input.ends_at ? new Date(input.ends_at) : null,
-        actorUserId,
         bannerId,
       ],
     )) as { affectedRows: number };
@@ -135,39 +150,39 @@ export class MariaDbBannerRepository implements BannerRepositoryPort {
   async updateStatus(
     bannerId: number,
     isActive: boolean,
-    actorUserId: number,
+    _actorUserId: number,
   ): Promise<BannerEntity | null> {
     const res = (await dbPool.query(
-      `UPDATE banners
-          SET is_active = ?, updated_by = ?
-        WHERE banner_id = ? AND deleted_at IS NULL`,
-      [isActive ? 1 : 0, actorUserId, bannerId],
+      `UPDATE banners_carrusel
+          SET activo = ?
+        WHERE id = ?`,
+      [isActive ? 1 : 0, bannerId],
     )) as { affectedRows: number };
 
     if (res.affectedRows === 0) return null;
     return this.findById(bannerId);
   }
 
-  async reorder(orderedBannerIds: readonly number[], actorUserId: number): Promise<void> {
+  async reorder(orderedBannerIds: readonly number[], _actorUserId: number): Promise<void> {
     await withTransaction(async (conn) => {
       for (let i = 0; i < orderedBannerIds.length; i += 1) {
         const bannerId = orderedBannerIds[i];
         await conn.query(
-          `UPDATE banners
-              SET display_order = ?, updated_by = ?
-            WHERE banner_id = ? AND deleted_at IS NULL`,
-          [i + 1, actorUserId, bannerId],
+          `UPDATE banners_carrusel
+              SET orden = ?
+            WHERE id = ?`,
+          [i + 1, bannerId],
         );
       }
     });
   }
 
-  async archive(bannerId: number, actorUserId: number): Promise<boolean> {
+  async archive(bannerId: number, _actorUserId: number): Promise<boolean> {
     const res = (await dbPool.query(
-      `UPDATE banners
-          SET is_active = 0, deleted_at = NOW(3), updated_by = ?
-        WHERE banner_id = ? AND deleted_at IS NULL`,
-      [actorUserId, bannerId],
+      `UPDATE banners_carrusel
+          SET activo = 0
+        WHERE id = ?`,
+      [bannerId],
     )) as { affectedRows: number };
 
     return res.affectedRows > 0;
@@ -186,8 +201,8 @@ export class MariaDbBannerRepository implements BannerRepositoryPort {
       cta_url: row.cta_url,
       display_order: Number(row.display_order),
       is_active: Boolean(row.is_active),
-      starts_at: row.starts_at ? new Date(row.starts_at).toISOString() : null,
-      ends_at: row.ends_at ? new Date(row.ends_at).toISOString() : null,
+      starts_at: null,
+      ends_at: null,
     };
   }
 }

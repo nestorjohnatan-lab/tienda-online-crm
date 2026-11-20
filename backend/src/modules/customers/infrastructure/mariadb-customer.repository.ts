@@ -6,16 +6,14 @@ import type {
   UpsertCustomerInput,
 } from '../domain/customer.repository.js';
 
-interface CustomerRow {
-  customer_id: number;
-  full_name: string;
+interface SvaClienteRow {
+  id: number;
+  cedula_rif: string;
+  nombre: string;
+  direccion: string | null;
+  telefono: string | null;
+  whatsapp: string | null;
   email: string | null;
-  phone: string;
-  document_id: string | null;
-  shipping_address: string | null;
-  city: string | null;
-  vehicle_notes: string | null;
-  crm_notes: string | null;
   created_at: Date;
 }
 
@@ -25,11 +23,11 @@ export class MariaDbCustomerRepository implements CustomerRepositoryPort {
     page: number;
     page_size: number;
   }): Promise<PaginatedData<CustomerEntity>> {
-    const conditions: string[] = ['deleted_at IS NULL'];
+    const conditions: string[] = ['1 = 1'];
     const sqlParams: unknown[] = [];
 
     if (params.q) {
-      conditions.push('(full_name LIKE ? OR email LIKE ? OR phone LIKE ? OR document_id LIKE ?)');
+      conditions.push('(nombre LIKE ? OR email LIKE ? OR telefono LIKE ? OR cedula_rif LIKE ?)');
       const like = `%${params.q}%`;
       sqlParams.push(like, like, like, like);
     }
@@ -38,20 +36,19 @@ export class MariaDbCustomerRepository implements CustomerRepositoryPort {
     const offset = (params.page - 1) * params.page_size;
 
     const countRows = (await dbPool.query(
-      `SELECT COUNT(*) AS total FROM customers WHERE ${whereClause}`,
+      `SELECT COUNT(*) AS total FROM clientes WHERE ${whereClause}`,
       sqlParams,
     )) as { total: number }[];
     const totalItems = Number(countRows[0]?.total ?? 0);
 
     const rows = (await dbPool.query(
-      `SELECT customer_id, full_name, email, phone, document_id,
-              shipping_address, city, vehicle_notes, crm_notes, created_at
-         FROM customers
+      `SELECT id, cedula_rif, nombre, direccion, telefono, whatsapp, email, created_at
+         FROM clientes
         WHERE ${whereClause}
-        ORDER BY created_at DESC, customer_id DESC
+        ORDER BY id DESC
         LIMIT ? OFFSET ?`,
       [...sqlParams, params.page_size, offset],
-    )) as CustomerRow[];
+    )) as SvaClienteRow[];
 
     return {
       items: rows.map((r) => this.mapRow(r)),
@@ -66,31 +63,28 @@ export class MariaDbCustomerRepository implements CustomerRepositoryPort {
 
   async findById(customerId: number): Promise<CustomerEntity | null> {
     const rows = (await dbPool.query(
-      `SELECT customer_id, full_name, email, phone, document_id,
-              shipping_address, city, vehicle_notes, crm_notes, created_at
-         FROM customers
-        WHERE customer_id = ? AND deleted_at IS NULL
+      `SELECT id, cedula_rif, nombre, direccion, telefono, whatsapp, email, created_at
+         FROM clientes
+        WHERE id = ?
         LIMIT 1`,
       [customerId],
-    )) as CustomerRow[];
+    )) as SvaClienteRow[];
     const row = rows[0];
     return row ? this.mapRow(row) : null;
   }
 
   async create(input: UpsertCustomerInput): Promise<CustomerEntity> {
     const res = (await dbPool.query(
-      `INSERT INTO customers
-        (full_name, email, phone, document_id, shipping_address, city, vehicle_notes, crm_notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO clientes
+        (cedula_rif, nombre, direccion, telefono, email, whatsapp)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
+        input.document_id || 'V-00000000',
         input.full_name,
+        input.shipping_address,
+        input.phone,
         input.email,
         input.phone,
-        input.document_id,
-        input.shipping_address,
-        input.city,
-        input.vehicle_notes,
-        input.crm_notes,
       ],
     )) as { insertId: number };
 
@@ -101,19 +95,15 @@ export class MariaDbCustomerRepository implements CustomerRepositoryPort {
 
   async update(customerId: number, input: UpsertCustomerInput): Promise<CustomerEntity | null> {
     const res = (await dbPool.query(
-      `UPDATE customers
-          SET full_name = ?, email = ?, phone = ?, document_id = ?,
-              shipping_address = ?, city = ?, vehicle_notes = ?, crm_notes = ?
-        WHERE customer_id = ? AND deleted_at IS NULL`,
+      `UPDATE clientes
+          SET cedula_rif = ?, nombre = ?, direccion = ?, telefono = ?, email = ?
+        WHERE id = ?`,
       [
+        input.document_id || 'V-00000000',
         input.full_name,
-        input.email,
-        input.phone,
-        input.document_id,
         input.shipping_address,
-        input.city,
-        input.vehicle_notes,
-        input.crm_notes,
+        input.phone,
+        input.email,
         customerId,
       ],
     )) as { affectedRows: number };
@@ -122,17 +112,17 @@ export class MariaDbCustomerRepository implements CustomerRepositoryPort {
     return this.findById(customerId);
   }
 
-  private mapRow(r: CustomerRow): CustomerEntity {
+  private mapRow(r: SvaClienteRow): CustomerEntity {
     return {
-      customer_id: Number(r.customer_id),
-      full_name: r.full_name,
+      customer_id: Number(r.id),
+      full_name: r.nombre,
       email: r.email,
-      phone: r.phone,
-      document_id: r.document_id,
-      shipping_address: r.shipping_address,
-      city: r.city,
-      vehicle_notes: r.vehicle_notes,
-      crm_notes: r.crm_notes,
+      phone: r.telefono ?? '',
+      document_id: r.cedula_rif,
+      shipping_address: r.direccion,
+      city: 'Venezuela',
+      vehicle_notes: null,
+      crm_notes: r.whatsapp ? `WhatsApp: ${r.whatsapp}` : null,
       created_at: new Date(r.created_at).toISOString(),
     };
   }

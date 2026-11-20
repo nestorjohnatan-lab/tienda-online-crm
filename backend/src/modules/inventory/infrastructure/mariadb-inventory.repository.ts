@@ -30,12 +30,12 @@ interface MovementRow {
 export class MariaDbInventoryRepository implements InventoryRepositoryPort {
   async listLowStockAlerts(): Promise<readonly LowStockAlertItem[]> {
     const rows = (await dbPool.query(
-      `SELECT product_id, sku, oem_code, name, stock_quantity, min_stock_threshold
-         FROM products
-        WHERE deleted_at IS NULL
-          AND is_active = 1
-          AND stock_quantity <= min_stock_threshold
-        ORDER BY (min_stock_threshold - stock_quantity) DESC, stock_quantity ASC`,
+      `SELECT id AS product_id, codigo AS sku, codigo AS oem_code, nombre AS name,
+              stock_actual AS stock_quantity, stock_minimo AS min_stock_threshold
+         FROM productos
+        WHERE estado = 'activo'
+          AND stock_actual <= stock_minimo
+        ORDER BY (stock_minimo - stock_actual) DESC, stock_actual ASC`,
     )) as {
       product_id: number;
       sku: string;
@@ -70,31 +70,35 @@ export class MariaDbInventoryRepository implements InventoryRepositoryPort {
     const sqlParams: unknown[] = [];
 
     if (params.product_id !== undefined) {
-      conditions.push('m.product_id = ?');
+      conditions.push('m.producto_id = ?');
       sqlParams.push(params.product_id);
-    }
-    if (params.movement_type !== undefined) {
-      conditions.push('m.movement_type = ?');
-      sqlParams.push(params.movement_type);
     }
 
     const whereClause = conditions.join(' AND ');
     const offset = (params.page - 1) * params.page_size;
 
     const countRows = (await dbPool.query(
-      `SELECT COUNT(*) AS total FROM inventory_movements m WHERE ${whereClause}`,
+      `SELECT COUNT(*) AS total FROM inventario_movimientos m WHERE ${whereClause}`,
       sqlParams,
     )) as { total: number }[];
     const totalItems = Number(countRows[0]?.total ?? 0);
 
     const rows = (await dbPool.query(
-      `SELECT m.movement_id, m.product_id, p.sku, p.name AS product_name,
-              m.order_id, m.movement_type, m.quantity_delta, m.stock_before, m.stock_after,
-              m.unit_cost, m.reference_code, m.notes, m.performed_by, m.created_at
-         FROM inventory_movements m
-         INNER JOIN products p ON p.product_id = m.product_id
+      `SELECT m.id AS movement_id, m.producto_id AS product_id, p.codigo AS sku,
+              p.nombre AS product_name, NULL AS order_id,
+              IF(m.tipo = 'cargo', 'entrada', 'salida_manual') AS movement_type,
+              IF(m.tipo = 'cargo', m.cantidad, -m.cantidad) AS quantity_delta,
+              p.stock_actual AS stock_before,
+              p.stock_actual AS stock_after,
+              p.costo_usd AS unit_cost,
+              m.motivo AS reference_code,
+              m.motivo AS notes,
+              m.usuario_id AS performed_by,
+              m.created_at
+         FROM inventario_movimientos m
+         INNER JOIN productos p ON p.id = m.producto_id
         WHERE ${whereClause}
-        ORDER BY m.created_at DESC, m.movement_id DESC
+        ORDER BY m.id DESC
         LIMIT ? OFFSET ?`,
       [...sqlParams, params.page_size, offset],
     )) as MovementRow[];
@@ -116,61 +120,64 @@ export class MariaDbInventoryRepository implements InventoryRepositoryPort {
     quantityDelta: number,
   ): Promise<InventoryMovementRecord> {
     const productRows = (await conn.query(
-      `SELECT product_id, sku, name, stock_quantity
-         FROM products
-        WHERE product_id = ? AND deleted_at IS NULL
+      `SELECT id, codigo, nombre, stock_actual, costo_usd
+         FROM productos
+        WHERE id = ?
         LIMIT 1 FOR UPDATE`,
       [input.product_id],
-    )) as { product_id: number; sku: string; name: string; stock_quantity: number }[];
+    )) as { id: number; codigo: string; nombre: string; stock_actual: number; costo_usd: number }[];
 
     const product = productRows[0];
     if (!product) {
       throw new NotFoundError(`Producto ${input.product_id} no encontrado`);
     }
 
-    const stockBefore = Number(product.stock_quantity);
+    const stockBefore = Number(product.stock_actual);
     const stockAfter = stockBefore + quantityDelta;
     if (stockAfter < 0) {
       throw new ConflictError(
-        `Stock insuficiente para ${product.sku}: actual ${stockBefore}, ajuste solicitado ${quantityDelta}`,
+        `Stock insuficiente para ${product.codigo}: actual ${stockBefore}, ajuste solicitado ${quantityDelta}`,
         'INSUFFICIENT_STOCK',
       );
     }
 
-    await conn.query(`UPDATE products SET stock_quantity = ? WHERE product_id = ?`, [
+    await conn.query(`UPDATE productos SET stock_actual = ? WHERE id = ?`, [
       stockAfter,
       input.product_id,
     ]);
 
+    await conn.query(
+      `UPDATE productos_depositos SET stock_actual = ? WHERE producto_id = ? AND deposito_id = 1`,
+      [stockAfter, input.product_id],
+    );
+
+    const tipo = quantityDelta >= 0 ? 'cargo' : 'descargo';
+    const absQty = Math.abs(quantityDelta);
+
     const res = (await conn.query(
-      `INSERT INTO inventory_movements
-        (product_id, movement_type, quantity_delta, stock_before, stock_after,
-         unit_cost, reference_code, notes, performed_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO inventario_movimientos
+        (producto_id, deposito_id, tipo, cantidad, motivo, usuario_id)
+       VALUES (?, 1, ?, ?, ?, ?)`,
       [
         input.product_id,
-        input.movement_type,
-        quantityDelta,
-        stockBefore,
-        stockAfter,
-        input.unit_cost,
-        input.reference_code,
-        input.notes,
-        input.performed_by,
+        tipo,
+        absQty,
+        input.notes || input.reference_code || 'Ajuste manual',
+        input.performed_by || 1,
       ],
     )) as { insertId: number };
 
     return {
       movement_id: Number(res.insertId),
-      product_id: Number(product.product_id),
-      sku: product.sku,
-      product_name: product.name,
+      product_id: Number(product.id),
+      sku: product.codigo,
+      product_name: product.nombre,
       order_id: null,
       movement_type: input.movement_type,
       quantity_delta: quantityDelta,
       stock_before: stockBefore,
       stock_after: stockAfter,
-      unit_cost: input.unit_cost,
+      unit_cost: Number(product.costo_usd),
       reference_code: input.reference_code,
       notes: input.notes,
       performed_by: input.performed_by,

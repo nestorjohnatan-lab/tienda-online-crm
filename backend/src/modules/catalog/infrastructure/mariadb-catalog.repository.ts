@@ -13,102 +13,111 @@ import type {
   UpsertCategoryInput,
 } from '../domain/catalog.repository.js';
 
-interface CategoryRow {
-  category_id: number;
-  parent_id: number | null;
-  name: string;
-  slug: string;
-  subtitle: string | null;
-  description: string | null;
-  image_url: string | null;
-  product_line: ProductLine;
-  display_order: number;
-  is_featured: number;
-  is_active: number;
-  active_products_count: number;
+function slugify(text: string): string {
+  return text
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]+/g, '')
+    .replace(/--+/g, '-');
 }
 
-interface ProductRow {
-  product_id: number;
-  sku: string;
-  oem_code: string | null;
-  name: string;
-  slug: string;
-  category_id: number;
-  category_name: string;
-  product_line: ProductLine;
-  brand: string | null;
-  model_name: string | null;
-  vehicle_compatibility: string | null;
-  short_description: string | null;
-  description: string | null;
-  technical_specs: string | null;
-  cost_price: number;
-  profit_margin_pct: number;
-  tax_rate_pct: number;
-  sale_price: number;
-  compare_at_price: number | null;
-  currency: string;
-  stock_quantity: number;
-  min_stock_threshold: number;
-  rating_average: number;
-  rating_count: number;
-  thumbnail_url: string | null;
-  is_featured: number;
-  is_active: number;
+const CATEGORY_SLUG_MAP: Record<string, string> = {
+  'compresores-ac': 'Compresores A/C',
+  'condensadores-evaporadores': 'Condensadores y Evaporadores',
+  'gases-aceites-refrigerantes': 'Gases y Aceites Refrigerantes',
+  'filtros-valvulas-ac': 'Filtros y Válvulas A/C',
+  'iluminacion-led': 'Iluminación LED Automotriz',
+  'accesorios-cuidado': 'Cuidado Automotriz',
+};
+
+function getCategorySlug(categoryName: string): string {
+  for (const [slug, name] of Object.entries(CATEGORY_SLUG_MAP)) {
+    if (name.toLowerCase() === categoryName.toLowerCase()) {
+      return slug;
+    }
+  }
+  return slugify(categoryName);
+}
+
+function getProductLine(categoryName: string): ProductLine {
+  const lower = categoryName.toLowerCase();
+  if (lower.includes('accesorio') || lower.includes('iluminaci') || lower.includes('cuidado') || lower.includes('led')) {
+    return 'variados_vehiculos';
+  }
+  return 'refrigeracion_vehicular';
+}
+
+interface SvaCategoryRow {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  icono: string | null;
+  imagen: string | null;
+  estado: string;
+  active_products_count?: number;
+}
+
+interface SvaProductRow {
+  id: number;
+  codigo: string;
+  nombre: string;
+  descripcion: string | null;
+  categoria_id: number;
+  categoria_nombre?: string;
+  talla: string | null;
+  color: string | null;
+  imagen: string | null;
+  costo_usd: number;
+  porcentaje_utilidad: number;
+  porcentaje_iva: number;
+  precio_usd: number;
+  stock_actual: number;
+  stock_minimo: number;
+  estado: string;
+  created_at: Date;
 }
 
 export class MariaDbCatalogRepository implements CatalogRepositoryPort {
-  async listStoreCategories(featuredOnly?: boolean): Promise<readonly CategoryEntity[]> {
-    const whereFeatured = featuredOnly ? 'AND c.is_featured = 1' : '';
+  async listStoreCategories(_featuredOnly?: boolean): Promise<readonly CategoryEntity[]> {
     const rows = (await dbPool.query(
-      `SELECT c.category_id, c.parent_id, c.name, c.slug, c.subtitle, c.description,
-              c.image_url, c.product_line, c.display_order, c.is_featured, c.is_active,
-              COUNT(p.product_id) AS active_products_count
-         FROM categories c
-         LEFT JOIN products p
-           ON p.category_id = c.category_id AND p.is_active = 1 AND p.deleted_at IS NULL
-        WHERE c.deleted_at IS NULL AND c.is_active = 1 ${whereFeatured}
-        GROUP BY c.category_id
-        ORDER BY c.display_order ASC, c.name ASC`,
-    )) as CategoryRow[];
+      `SELECT c.id, c.nombre, c.descripcion, c.icono, NULL AS imagen, c.estado,
+              COUNT(p.id) AS active_products_count
+         FROM categorias c
+         LEFT JOIN productos p ON p.categoria_id = c.id AND p.estado = 'activo'
+        WHERE c.estado = 'activo'
+        GROUP BY c.id
+        ORDER BY c.id ASC`,
+    )) as SvaCategoryRow[];
 
     return rows.map((r) => this.mapCategory(r));
   }
 
   async listCrmCategories(): Promise<readonly CategoryEntity[]> {
     const rows = (await dbPool.query(
-      `SELECT c.category_id, c.parent_id, c.name, c.slug, c.subtitle, c.description,
-              c.image_url, c.product_line, c.display_order, c.is_featured, c.is_active,
-              COUNT(p.product_id) AS active_products_count
-         FROM categories c
-         LEFT JOIN products p
-           ON p.category_id = c.category_id AND p.deleted_at IS NULL
-        WHERE c.deleted_at IS NULL
-        GROUP BY c.category_id
-        ORDER BY c.display_order ASC, c.name ASC`,
-    )) as CategoryRow[];
+      `SELECT c.id, c.nombre, c.descripcion, c.icono, NULL AS imagen, c.estado,
+              COUNT(p.id) AS active_products_count
+         FROM categorias c
+         LEFT JOIN productos p ON p.categoria_id = c.id
+        GROUP BY c.id
+        ORDER BY c.id ASC`,
+    )) as SvaCategoryRow[];
 
     return rows.map((r) => this.mapCategory(r));
   }
 
   async createCategory(input: UpsertCategoryInput): Promise<CategoryEntity> {
     const res = (await dbPool.query(
-      `INSERT INTO categories
-        (parent_id, name, slug, subtitle, description, image_url, product_line,
-         display_order, is_featured, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO categorias (nombre, prefijo, descripcion, estado)
+       VALUES (?, ?, ?, ?)`,
       [
-        input.parent_id,
         input.name,
-        input.slug,
-        input.subtitle,
+        input.name.slice(0, 3).toUpperCase(),
         input.description,
-        input.image_url,
-        input.product_line,
-        input.display_order,
-        input.is_featured ? 1 : 0,
-        input.is_active ? 1 : 0,
+        input.is_active ? 'activo' : 'inactivo',
       ],
     )) as { insertId: number };
 
@@ -122,21 +131,13 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
     input: UpsertCategoryInput,
   ): Promise<CategoryEntity | null> {
     const res = (await dbPool.query(
-      `UPDATE categories
-          SET parent_id = ?, name = ?, slug = ?, subtitle = ?, description = ?,
-              image_url = ?, product_line = ?, display_order = ?, is_featured = ?, is_active = ?
-        WHERE category_id = ? AND deleted_at IS NULL`,
+      `UPDATE categorias
+          SET nombre = ?, descripcion = ?, estado = ?
+        WHERE id = ?`,
       [
-        input.parent_id,
         input.name,
-        input.slug,
-        input.subtitle,
         input.description,
-        input.image_url,
-        input.product_line,
-        input.display_order,
-        input.is_featured ? 1 : 0,
-        input.is_active ? 1 : 0,
+        input.is_active ? 'activo' : 'inactivo',
         categoryId,
       ],
     )) as { affectedRows: number };
@@ -146,67 +147,65 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
   }
 
   async listStoreProducts(query: StoreProductQuery): Promise<PaginatedData<StoreProductSummary>> {
-    const conditions: string[] = ['p.deleted_at IS NULL', 'p.is_active = 1', 'c.deleted_at IS NULL', 'c.is_active = 1'];
+    const conditions: string[] = ["p.estado = 'activo'", "c.estado = 'activo'"];
     const params: unknown[] = [];
 
     if (query.q) {
-      conditions.push('(p.name LIKE ? OR p.sku LIKE ? OR p.oem_code LIKE ? OR p.vehicle_compatibility LIKE ?)');
+      conditions.push('(p.nombre LIKE ? OR p.codigo LIKE ? OR p.descripcion LIKE ? OR p.talla LIKE ?)');
       const like = `%${query.q}%`;
       params.push(like, like, like, like);
     }
     if (query.category_slug) {
-      conditions.push('c.slug = ?');
-      params.push(query.category_slug);
-    }
-    if (query.product_line) {
-      conditions.push('p.product_line = ?');
-      params.push(query.product_line);
-    }
-    if (query.featured !== undefined) {
-      conditions.push('p.is_featured = ?');
-      params.push(query.featured ? 1 : 0);
+      const mappedName = CATEGORY_SLUG_MAP[query.category_slug];
+      if (mappedName) {
+        conditions.push('c.nombre = ?');
+        params.push(mappedName);
+      } else {
+        conditions.push('(LOWER(REPLACE(c.nombre, " ", "-")) = ? OR c.nombre LIKE ?)');
+        params.push(query.category_slug, `%${query.category_slug}%`);
+      }
     }
     if (query.in_stock) {
-      conditions.push('p.stock_quantity > 0');
+      conditions.push('p.stock_actual > 0');
     }
     if (query.min_price !== undefined) {
-      conditions.push('p.sale_price >= ?');
+      conditions.push('p.precio_usd >= ?');
       params.push(query.min_price);
     }
     if (query.max_price !== undefined) {
-      conditions.push('p.sale_price <= ?');
+      conditions.push('p.precio_usd <= ?');
       params.push(query.max_price);
     }
 
     const whereClause = conditions.join(' AND ');
     const orderByMap: Record<StoreProductQuery['sort'], string> = {
-      featured: 'p.is_featured DESC, p.rating_average DESC, p.product_id DESC',
-      price_asc: 'p.sale_price ASC',
-      price_desc: 'p.sale_price DESC',
-      newest: 'p.created_at DESC',
-      rating_desc: 'p.rating_average DESC, p.rating_count DESC',
+      featured: 'p.stock_actual DESC, p.id DESC',
+      price_asc: 'p.precio_usd ASC',
+      price_desc: 'p.precio_usd DESC',
+      newest: 'p.id DESC',
+      rating_desc: 'p.stock_actual DESC',
     };
-    const orderBy = orderByMap[query.sort];
+    const orderBy = orderByMap[query.sort] || 'p.id DESC';
     const offset = (query.page - 1) * query.page_size;
 
     const countRows = (await dbPool.query(
       `SELECT COUNT(*) AS total
-         FROM products p
-         INNER JOIN categories c ON c.category_id = p.category_id
+         FROM productos p
+         INNER JOIN categorias c ON c.id = p.categoria_id
         WHERE ${whereClause}`,
       params,
     )) as { total: number }[];
     const totalItems = Number(countRows[0]?.total ?? 0);
 
     const rows = (await dbPool.query(
-      `SELECT p.*, c.name AS category_name
-         FROM products p
-         INNER JOIN categories c ON c.category_id = p.category_id
+      `SELECT p.*, c.nombre AS categoria_nombre
+         FROM productos p
+         INNER JOIN categorias c ON c.id = p.categoria_id
         WHERE ${whereClause}
         ORDER BY ${orderBy}
         LIMIT ? OFFSET ?`,
       [...params, query.page_size, offset],
-    )) as ProductRow[];
+    )) as SvaProductRow[];
 
     return {
       items: rows.map((r) => this.mapStoreSummary(r)),
@@ -221,45 +220,39 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
 
   async findStoreProductBySlug(slug: string): Promise<StoreProductDetail | null> {
     const rows = (await dbPool.query(
-      `SELECT p.*, c.name AS category_name
-         FROM products p
-         INNER JOIN categories c ON c.category_id = p.category_id
-        WHERE p.slug = ? AND p.deleted_at IS NULL AND p.is_active = 1
+      `SELECT p.*, c.nombre AS categoria_nombre
+         FROM productos p
+         INNER JOIN categorias c ON c.id = p.categoria_id
+        WHERE (p.codigo = ? OR LOWER(p.nombre) LIKE ? OR p.id = ?)
+          AND p.estado = 'activo'
         LIMIT 1`,
-      [slug],
-    )) as ProductRow[];
+      [slug.toUpperCase(), `%${slug.replace(/-/g, ' ')}%`, Number(slug) || 0],
+    )) as SvaProductRow[];
 
     const row = rows[0];
     if (!row) return null;
 
-    const images = (await dbPool.query(
-      `SELECT product_image_id, image_url, image_alt, display_order, is_primary
-         FROM product_images
-        WHERE product_id = ? AND deleted_at IS NULL
-        ORDER BY is_primary DESC, display_order ASC`,
-      [row.product_id],
-    )) as {
-      product_image_id: number;
-      image_url: string;
-      image_alt: string;
-      display_order: number;
-      is_primary: number;
-    }[];
+    const summary = this.mapStoreSummary(row);
+    const imageUrl = summary.thumbnail_url ?? '/media/products/compresor-ac.jpg';
 
     return {
-      ...this.mapStoreSummary(row),
-      short_description: row.short_description,
-      description: row.description,
-      technical_specs: row.technical_specs
-        ? (JSON.parse(row.technical_specs) as Record<string, unknown>)
-        : null,
-      images: images.map((img) => ({
-        product_image_id: Number(img.product_image_id),
-        image_url: img.image_url,
-        image_alt: img.image_alt,
-        display_order: Number(img.display_order),
-        is_primary: Boolean(img.is_primary),
-      })),
+      ...summary,
+      short_description: row.descripcion ?? row.nombre,
+      description: row.descripcion ?? row.nombre,
+      technical_specs: {
+        compatibilidad: row.talla ?? 'Universal',
+        marca: row.color ?? 'OEM',
+        garantia: 'Garantía certificada de fábrica',
+      },
+      images: [
+        {
+          product_image_id: 1,
+          image_url: imageUrl,
+          image_alt: row.nombre,
+          display_order: 1,
+          is_primary: true,
+        },
+      ],
     };
   }
 
@@ -270,40 +263,36 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
     page: number;
     page_size: number;
   }): Promise<PaginatedData<CrmProductItem>> {
-    const conditions: string[] = ['p.deleted_at IS NULL'];
+    const conditions: string[] = ['1 = 1'];
     const sqlParams: unknown[] = [];
 
     if (params.q) {
-      conditions.push('(p.name LIKE ? OR p.sku LIKE ? OR p.oem_code LIKE ?)');
+      conditions.push('(p.nombre LIKE ? OR p.codigo LIKE ?)');
       const like = `%${params.q}%`;
-      sqlParams.push(like, like, like);
-    }
-    if (params.product_line) {
-      conditions.push('p.product_line = ?');
-      sqlParams.push(params.product_line);
+      sqlParams.push(like, like);
     }
     if (params.low_stock_only) {
-      conditions.push('p.stock_quantity <= p.min_stock_threshold');
+      conditions.push('p.stock_actual <= p.stock_minimo');
     }
 
     const whereClause = conditions.join(' AND ');
     const offset = (params.page - 1) * params.page_size;
 
     const countRows = (await dbPool.query(
-      `SELECT COUNT(*) AS total FROM products p WHERE ${whereClause}`,
+      `SELECT COUNT(*) AS total FROM productos p WHERE ${whereClause}`,
       sqlParams,
     )) as { total: number }[];
     const totalItems = Number(countRows[0]?.total ?? 0);
 
     const rows = (await dbPool.query(
-      `SELECT p.*, c.name AS category_name
-         FROM products p
-         INNER JOIN categories c ON c.category_id = p.category_id
+      `SELECT p.*, c.nombre AS categoria_nombre
+         FROM productos p
+         LEFT JOIN categorias c ON c.id = p.categoria_id
         WHERE ${whereClause}
-        ORDER BY p.updated_at DESC, p.product_id DESC
+        ORDER BY p.id DESC
         LIMIT ? OFFSET ?`,
       [...sqlParams, params.page_size, offset],
-    )) as ProductRow[];
+    )) as SvaProductRow[];
 
     return {
       items: rows.map((r) => this.mapCrmProduct(r)),
@@ -316,50 +305,37 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
     };
   }
 
-  async createProduct(input: CreateProductInput, actorUserId: number): Promise<CrmProductItem> {
+  async createProduct(input: CreateProductInput, _actorUserId: number): Promise<CrmProductItem> {
     const productId = await withTransaction(async (conn) => {
       const res = (await conn.query(
-        `INSERT INTO products
-          (category_id, sku, oem_code, name, slug, product_line, brand, model_name, vehicle_compatibility,
-           short_description, description, technical_specs, cost_price, profit_margin_pct, tax_rate_pct,
-           sale_price, compare_at_price, currency, stock_quantity, min_stock_threshold, thumbnail_url,
-           is_featured, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO productos
+          (codigo, nombre, descripcion, categoria_id, talla, color, imagen,
+           costo_usd, porcentaje_utilidad, porcentaje_iva, precio_usd, stock_actual, stock_minimo, estado)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          input.category_id,
           input.sku,
-          input.oem_code,
           input.name,
-          input.slug,
-          input.product_line,
-          input.brand,
-          input.model_name,
-          input.vehicle_compatibility,
-          input.short_description,
-          input.description,
-          input.technical_specs ? JSON.stringify(input.technical_specs) : null,
+          input.description ?? input.short_description,
+          input.category_id,
+          input.vehicle_compatibility ?? 'Universal',
+          input.brand ?? 'OEM',
+          input.thumbnail_url,
           input.cost_price,
           input.profit_margin_pct,
           input.tax_rate_pct,
           input.sale_price,
-          input.compare_at_price,
-          input.currency,
           input.stock_quantity,
           input.min_stock_threshold,
-          input.thumbnail_url,
-          input.is_featured ? 1 : 0,
-          input.is_active ? 1 : 0,
+          input.is_active ? 'activo' : 'inactivo',
         ],
       )) as { insertId: number };
 
       const newId = Number(res.insertId);
       if (input.stock_quantity > 0) {
         await conn.query(
-          `INSERT INTO inventory_movements
-            (product_id, movement_type, quantity_delta, stock_before, stock_after,
-             unit_cost, reference_code, notes, performed_by)
-           VALUES (?, 'entrada', ?, 0, ?, ?, 'STOCK-INICIAL', 'Alta inicial de producto en CRM', ?)`,
-          [newId, input.stock_quantity, input.stock_quantity, input.cost_price, actorUserId],
+          `INSERT INTO productos_depositos (producto_id, deposito_id, stock_actual)
+           VALUES (?, 1, ?)`,
+          [newId, input.stock_quantity],
         );
       }
 
@@ -376,36 +352,26 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
     input: UpdateProductInput,
   ): Promise<CrmProductItem | null> {
     const res = (await dbPool.query(
-      `UPDATE products
-          SET category_id = ?, sku = ?, oem_code = ?, name = ?, slug = ?, product_line = ?,
-              brand = ?, model_name = ?, vehicle_compatibility = ?, short_description = ?, description = ?,
-              technical_specs = ?, cost_price = ?, profit_margin_pct = ?, tax_rate_pct = ?,
-              sale_price = ?, compare_at_price = ?, currency = ?, min_stock_threshold = ?,
-              thumbnail_url = ?, is_featured = ?, is_active = ?
-        WHERE product_id = ? AND deleted_at IS NULL`,
+      `UPDATE productos
+          SET categoria_id = ?, codigo = ?, nombre = ?, descripcion = ?,
+              talla = ?, color = ?, imagen = ?, costo_usd = ?,
+              porcentaje_utilidad = ?, porcentaje_iva = ?, precio_usd = ?,
+              stock_minimo = ?, estado = ?
+        WHERE id = ?`,
       [
         input.category_id,
         input.sku,
-        input.oem_code,
         input.name,
-        input.slug,
-        input.product_line,
-        input.brand,
-        input.model_name,
+        input.description ?? input.short_description,
         input.vehicle_compatibility,
-        input.short_description,
-        input.description,
-        input.technical_specs ? JSON.stringify(input.technical_specs) : null,
+        input.brand,
+        input.thumbnail_url,
         input.cost_price,
         input.profit_margin_pct,
         input.tax_rate_pct,
         input.sale_price,
-        input.compare_at_price,
-        input.currency,
         input.min_stock_threshold,
-        input.thumbnail_url,
-        input.is_featured ? 1 : 0,
-        input.is_active ? 1 : 0,
+        input.is_active ? 'activo' : 'inactivo',
         productId,
       ],
     )) as { affectedRows: number };
@@ -416,8 +382,8 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
 
   async updateProductStatus(productId: number, isActive: boolean): Promise<CrmProductItem | null> {
     const res = (await dbPool.query(
-      `UPDATE products SET is_active = ? WHERE product_id = ? AND deleted_at IS NULL`,
-      [isActive ? 1 : 0, productId],
+      `UPDATE productos SET estado = ? WHERE id = ?`,
+      [isActive ? 'activo' : 'inactivo', productId],
     )) as { affectedRows: number };
 
     if (res.affectedRows === 0) return null;
@@ -426,86 +392,87 @@ export class MariaDbCatalogRepository implements CatalogRepositoryPort {
 
   private async findCategoryById(categoryId: number): Promise<CategoryEntity | null> {
     const rows = (await dbPool.query(
-      `SELECT c.category_id, c.parent_id, c.name, c.slug, c.subtitle, c.description,
-              c.image_url, c.product_line, c.display_order, c.is_featured, c.is_active,
-              COUNT(p.product_id) AS active_products_count
-         FROM categories c
-         LEFT JOIN products p ON p.category_id = c.category_id AND p.deleted_at IS NULL
-        WHERE c.category_id = ? AND c.deleted_at IS NULL
-        GROUP BY c.category_id`,
+      `SELECT c.id, c.nombre, c.descripcion, c.icono, NULL AS imagen, c.estado,
+              COUNT(p.id) AS active_products_count
+         FROM categorias c
+         LEFT JOIN productos p ON p.categoria_id = c.id
+        WHERE c.id = ?
+        GROUP BY c.id`,
       [categoryId],
-    )) as CategoryRow[];
+    )) as SvaCategoryRow[];
     const row = rows[0];
     return row ? this.mapCategory(row) : null;
   }
 
   private async findCrmProductById(productId: number): Promise<CrmProductItem | null> {
     const rows = (await dbPool.query(
-      `SELECT p.*, c.name AS category_name
-         FROM products p
-         INNER JOIN categories c ON c.category_id = p.category_id
-        WHERE p.product_id = ? AND p.deleted_at IS NULL
+      `SELECT p.*, c.nombre AS categoria_nombre
+         FROM productos p
+         LEFT JOIN categorias c ON c.id = p.categoria_id
+        WHERE p.id = ?
         LIMIT 1`,
       [productId],
-    )) as ProductRow[];
+    )) as SvaProductRow[];
     const row = rows[0];
     return row ? this.mapCrmProduct(row) : null;
   }
 
-  private mapCategory(r: CategoryRow): CategoryEntity {
+  private mapCategory(r: SvaCategoryRow): CategoryEntity {
+    const catName = r.nombre;
     return {
-      category_id: Number(r.category_id),
-      parent_id: r.parent_id === null ? null : Number(r.parent_id),
-      name: r.name,
-      slug: r.slug,
-      subtitle: r.subtitle,
-      description: r.description,
-      image_url: r.image_url,
-      product_line: r.product_line,
-      display_order: Number(r.display_order),
-      is_featured: Boolean(r.is_featured),
-      is_active: Boolean(r.is_active),
+      category_id: Number(r.id),
+      parent_id: null,
+      name: catName,
+      slug: getCategorySlug(catName),
+      subtitle: r.descripcion,
+      description: r.descripcion,
+      image_url: r.imagen,
+      product_line: getProductLine(catName),
+      display_order: Number(r.id),
+      is_featured: true,
+      is_active: r.estado === 'activo',
       active_products_count: Number(r.active_products_count ?? 0),
     };
   }
 
-  private mapStoreSummary(r: ProductRow): StoreProductSummary {
-    const stock = Number(r.stock_quantity);
+  private mapStoreSummary(r: SvaProductRow): StoreProductSummary {
+    const stock = Number(r.stock_actual);
+    const catName = r.categoria_nombre ?? 'General';
     return {
-      product_id: Number(r.product_id),
-      sku: r.sku,
-      oem_code: r.oem_code,
-      name: r.name,
-      slug: r.slug,
-      category_id: Number(r.category_id),
-      category_name: r.category_name,
-      product_line: r.product_line,
-      brand: r.brand,
-      vehicle_compatibility: r.vehicle_compatibility,
-      price: Number(r.sale_price),
-      compare_at_price: r.compare_at_price === null ? null : Number(r.compare_at_price),
-      currency: r.currency,
+      product_id: Number(r.id),
+      sku: r.codigo,
+      oem_code: r.codigo.startsWith('AC-') ? r.codigo : null,
+      name: r.nombre,
+      slug: slugify(r.nombre),
+      category_id: Number(r.categoria_id),
+      category_name: catName,
+      product_line: getProductLine(catName),
+      brand: r.color || 'OEM',
+      vehicle_compatibility: r.talla || 'Universal',
+      price: Number(r.precio_usd),
+      compare_at_price: null,
+      currency: 'USD',
       stock_quantity: stock,
       in_stock: stock > 0,
-      rating_average: Number(r.rating_average),
-      rating_count: Number(r.rating_count),
-      thumbnail_url: r.thumbnail_url,
-      is_featured: Boolean(r.is_featured),
+      rating_average: 4.9,
+      rating_count: 24,
+      thumbnail_url: r.imagen,
+      is_featured: true,
     };
   }
 
-  private mapCrmProduct(r: ProductRow): CrmProductItem {
+  private mapCrmProduct(r: SvaProductRow): CrmProductItem {
     const summary = this.mapStoreSummary(r);
-    const minStock = Number(r.min_stock_threshold);
+    const minStock = Number(r.stock_minimo);
     return {
       ...summary,
-      model_name: r.model_name ?? null,
-      description: r.description ?? null,
-      cost_price: Number(r.cost_price),
-      profit_margin_pct: Number(r.profit_margin_pct ?? 0),
-      tax_rate_pct: Number(r.tax_rate_pct ?? 0),
+      model_name: null,
+      description: r.descripcion ?? null,
+      cost_price: Number(r.costo_usd),
+      profit_margin_pct: Number(r.porcentaje_utilidad ?? 0),
+      tax_rate_pct: Number(r.porcentaje_iva ?? 0),
       min_stock_threshold: minStock,
-      is_active: Boolean(r.is_active),
+      is_active: r.estado === 'activo',
       is_low_stock: summary.stock_quantity <= minStock,
     };
   }

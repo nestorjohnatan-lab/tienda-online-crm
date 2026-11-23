@@ -32,6 +32,17 @@ async function seedAdmin(): Promise<void> {
     [fullName, email, passwordHash],
   );
 
+  await dbPool.query(
+    `INSERT INTO usuarios (nombre, email, password, rol, cedula, estado)
+     VALUES (?, ?, ?, 'admin', 'V-00000000', 'activo')
+     ON DUPLICATE KEY UPDATE
+       nombre = VALUES(nombre),
+       password = VALUES(password),
+       rol = 'admin',
+       estado = 'activo'`,
+    [fullName, email, passwordHash],
+  );
+
   console.log(`Usuario admin listo: ${email}`);
   await closeDatabasePool();
 }

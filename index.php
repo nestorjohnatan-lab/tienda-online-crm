@@ -214,7 +214,7 @@ if (isset($_GET['go']) && $tiendaActive) {
         <div class="header-brand">
             <div class="logo-badge">AF</div>
             <div>
-                <h1>AutoFrío PRO · Tienda Online &amp; CRM</h1>
+                <h1>AutoFrío PRO · Tienda Online</h1>
                 <p style="margin: 0; font-size: 0.8rem;">Módulo Frontend y API Integrada con SVA ERP</p>
             </div>
         </div>
@@ -226,7 +226,7 @@ if (isset($_GET['go']) && $tiendaActive) {
             <p>La vitrina online de AutoFrío PRO está corriendo y conectada a la base de datos <code>test_sva_online</code>.</p>
             <div class="actions">
                 <a href="http://localhost:5173/" id="launchBtn" class="btn btn--primary">Abrir Tienda Web (localhost:5173) ↗</a>
-                <a href="/Mexora/" class="btn btn--secondary">← Volver al Hub Mexora</a>
+                <a href="/nexora/" class="btn btn--secondary">← Volver al Hub NEXORA</a>
             </div>
             <div class="countdown-notice" id="countdownNotice">
                 Redirigiendo automáticamente en <strong id="timer">3</strong>s... <a href="#" id="cancelRedirect" style="color: var(--brand-primary); text-decoration: underline;">Cancelar</a>
@@ -242,7 +242,7 @@ if (isset($_GET['go']) && $tiendaActive) {
                         if (timerEl) timerEl.textContent = seconds;
                         if (seconds <= 0) {
                             clearInterval(interval);
-                            window.location.href = 'http://localhost:5173/';
+                            window.location.href = 'http://' + window.location.hostname + ':5173/';
                         }
                     }, 1000);
 
@@ -261,17 +261,17 @@ if (isset($_GET['go']) && $tiendaActive) {
             
             <div class="command-box">
                 <span>1. Iniciar Tienda Web (React + Vite):</span>
-                cd /srv/http/Mexora/tienda-online-crm/tienda &amp;&amp; npm run dev
+                cd /var/www/nexora/tienda-online-crm/tienda &amp;&amp; npm run dev
             </div>
 
             <div class="command-box">
                 <span>2. Iniciar API Backend (Node.js REST):</span>
-                cd /srv/http/Mexora/tienda-online-crm/backend &amp;&amp; npm run dev
+                cd /var/www/nexora/tienda-online-crm/backend &amp;&amp; npm run dev
             </div>
 
             <div class="actions">
-                <a href="/Mexora/" class="btn btn--primary">← Ir al Hub Mexora Suite</a>
-                <a href="/Mexora/sva_online/" class="btn btn--secondary">Abrir SVA ERP &amp; POS</a>
+                <a href="/nexora/" class="btn btn--primary">← Ir al Hub NEXORA Suite</a>
+                <a href="/nexora/sva_online/" class="btn btn--secondary">Abrir SVA ERP &amp; POS</a>
             </div>
         <?php endif; ?>
     </div>

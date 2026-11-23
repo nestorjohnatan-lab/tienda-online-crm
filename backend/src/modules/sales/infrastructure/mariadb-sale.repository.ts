@@ -179,7 +179,7 @@ export class MariaDbSaleRepository implements SaleRepositoryPort {
             const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
             const buffer = Buffer.from(match[2], 'base64');
             const fileName = `pago_${orderNumber}.${ext}`;
-            const dir = '/srv/http/Mexora/sva_online/uploads/comprobantes';
+            const dir = '/var/www/nexora/sva_online/uploads/comprobantes';
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             fs.writeFileSync(path.join(dir, fileName), buffer);
             comprobantePath = `uploads/comprobantes/${fileName}`;

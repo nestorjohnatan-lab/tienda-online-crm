@@ -4,7 +4,7 @@ import { CheckCircle2, Store } from 'lucide-react';
 import { storeApi } from '../../shared/api/client';
 import type { MarketplaceStore } from '../../shared/api/contracts';
 
-const CRM_URL = import.meta.env.VITE_CRM_URL ?? 'http://localhost:5174';
+const ERP_URL = import.meta.env.VITE_ERP_URL ?? '/nexora/sva_online/';
 
 export function CreateStorePage() {
   const [storeName, setStoreName] = useState('');
@@ -55,11 +55,11 @@ export function CreateStorePage() {
               <CheckCircle2 size={22} color="#16a34a" /> ¡Tu tienda "{createdStore.name}" ya está activa!
             </h2>
             <p className="muted">
-              Ya puedes ingresar al Panel de Vendedor (CRM) con tu correo <strong>{ownerEmail}</strong> para subir productos, fotos e inventario.
+              Ya puedes ingresar al Panel Administrativo ERP con tu usuario para gestionar ventas, productos e inventario.
             </p>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
-              <a href={CRM_URL} target="_blank" rel="noreferrer" className="btn btn--primary btn--pill">
-                Abrir Panel de mi Tienda (CRM)
+              <a href={ERP_URL} target="_blank" rel="noreferrer" className="btn btn--primary btn--pill">
+                Abrir Panel ERP &amp; Inventario
               </a>
               <Link to={`/tienda/${createdStore.slug}`} className="btn btn--outline btn--pill">
                 Ver perfil público de mi tienda

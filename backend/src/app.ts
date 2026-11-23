@@ -66,7 +66,28 @@ export function createApp(): express.Express {
   );
   app.use(
     cors({
-      origin: [env.CORS_TIENDA_ORIGIN, env.CORS_CRM_ORIGIN],
+      origin: (requestOrigin, callback) => {
+        if (!requestOrigin) return callback(null, true);
+        const allowedExplicit = [
+          env.CORS_TIENDA_ORIGIN,
+          env.CORS_CRM_ORIGIN,
+          'http://localhost:5173',
+          'http://localhost:5174',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:5174',
+          'http://162.245.188.254:5173',
+          'http://162.245.188.254:5174',
+          'http://162.245.188.254',
+          'https://162.245.188.254',
+        ];
+        if (
+          allowedExplicit.includes(requestOrigin) ||
+          /^http:\/\/(localhost|127\.0\.0\.1|162\.245\.188\.254)(:[0-9]+)?$/.test(requestOrigin)
+        ) {
+          return callback(null, true);
+        }
+        return callback(null, true);
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Request-Id'],
